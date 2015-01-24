@@ -421,7 +421,7 @@ The most typical way rails helps us with requests is through parameter parsing a
 Lets start by getting our parameters into a hash. To do this we pass env into Rack::Request; a wrapper object that parses the query string and injects the results into @env["rack.request.query_hash"]:
 
 ```ruby
-Eldr.new do
+class App < Eldr::App
   post '/cats' do |env|
     request = Rack::Request.new(env)
     params  = request.GET # we could also access it from env["rack.request.query_hash"]
@@ -453,7 +453,7 @@ class InvalidParams < Edlr::ResponseError
   end
 end
 
-Eldr::App.new do
+class App < Eldr::App
   post '/cats' do |env|
     request = Rack::Request.new(env)
     params  = CatParams.new(request.GET)
