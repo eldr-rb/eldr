@@ -1,0 +1,28 @@
+has_hook: true
+links_to_badges: true
+has_simple_example: true
+are_rack_apps: true
+installation_instructions: true
+features_list: true
+has_quickstart: true
+quickstart:
+  has_rundown: true
+  templates: true
+  helpers: true
+  rails_style_routing: true
+  rails_style_responses: true
+  rails_style_requests: true
+  extensions: true
+  builder: true
+  redirects: true
+  handlers:
+    call: true
+    any_object: true
+    action_objects: true
+    action_objects_example: true
+  testing: true
+has_rack_loop: true
+mentions_examples_folder: true
+has_help: true
+has_license: true
+has_contributing: true

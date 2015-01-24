@@ -1,0 +1,28 @@
+inherit_from: .rubocop_todo.yml
+
+Style/AndOr:
+  Enabled: false
+
+Metrics/AbcSize:
+  Max: 40
+
+Metrics/MethodLength:
+  Max: 20
+
+Metrics/ClassLength:
+  Max: 130
+
+Metrics/LineLength:
+  Max: 120
+  
+Style/SignalException:
+  Enabled: false
+
+AllCops:
+  Exclude:
+    - 'db/**/*'
+    - 'config/**/*'
+    - 'script/**/*'
+    - 'spec/**/*'
+    - 'Gemfile'
+    - 'eldr.gemspec'
