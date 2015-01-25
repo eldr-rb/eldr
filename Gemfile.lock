@@ -4,7 +4,7 @@ PATH
     eldr (0.0.1)
       fast_blank (= 0.0.2)
       mustermann (= 0.4.0)
-      rack (>= 1.5.2)
+      rack (~> 1.5)
 
 GEM
   remote: https://rubygems.org/
@@ -78,8 +78,8 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  bundler (>= 1.0.0)
-  coveralls
+  bundler (~> 1.7.0)
+  coveralls (~> 0.7.3)
   eldr!
   rack-test (= 0.6.2)
   rake (= 10.4.2)
