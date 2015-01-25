@@ -78,8 +78,8 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  bundler (~> 1.7.0)
-  coveralls (~> 0.7.3)
+  bundler (~> 1.7)
+  coveralls (~> 0.7)
   eldr!
   rack-test (= 0.6.2)
   rake (= 10.4.2)
