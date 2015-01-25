@@ -13,7 +13,7 @@ Gem::Specification.new do |s|
                    Built close to Rack and the metal.'
   s.licenses    = ['MIT']
 
-  s.required_rubygems_version = '~> 1.3.6'
+  s.required_rubygems_version = '~> 2.0'
   s.required_ruby_version     = '~> 2.0'
   s.rubyforge_project         = 'eldr'
 
