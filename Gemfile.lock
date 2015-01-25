@@ -31,7 +31,7 @@ GEM
       slop (~> 3.4, >= 3.4.5)
     powerpack (0.0.9)
     rack (1.6.0)
-    rack-test (0.6.2)
+    rack-test (0.6.3)
       rack (>= 1.0)
     rainbow (2.0.0)
     rake (10.4.2)
@@ -81,7 +81,7 @@ DEPENDENCIES
   bundler (~> 1.7)
   coveralls (~> 0.7)
   eldr!
-  rack-test (= 0.6.2)
+  rack-test (~> 0.6)
   rake (= 10.4.2)
   rspec (= 3.1.0)
   rubocop (= 0.28.0)
