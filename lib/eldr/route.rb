@@ -19,7 +19,7 @@ module Eldr
     end
 
     def call(env, app: nil)
-      # TODO Investigate
+      # TODO: Investigate
       # maybe if we passed this around between methods it would be more perfomant
       # than setting the accessor?
       @app = app

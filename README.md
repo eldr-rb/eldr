@@ -1,4 +1,4 @@
-# Eldr [![Build Status](https://travis-ci.org/eldr-rb/eldr.svg)](https://travis-ci.org/eldr-rb/eldr) [![Code Climate](https://codeclimate.com/github/eldr-rb/eldr/badges/gpa.svg)](https://codeclimate.com/github/eldr-rb/eldr) [![Coverage Status](https://coveralls.io/repos/eldr-rb/eldr/badge.svg)](https://coveralls.io/r/eldr-rb/eldr) [![Dependency Status](https://gemnasium.com/eldr-rb/eldr.svg)](https://gemnasium.com/eldr-rb/eldr) [![Inline docs](http://inch-ci.org/github/eldr-rb/eldr.svg?branch=master)](http://inch-ci.org/github/eldr-rb/eldr)
+# Eldr [![Build Status](https://travis-ci.org/eldr-rb/eldr.svg)](https://travis-ci.org/eldr-rb/eldr) [![Code Climate](https://codeclimate.com/github/eldr-rb/eldr/badges/gpa.svg)](https://codeclimate.com/github/eldr-rb/eldr) [![Coverage Status](https://coveralls.io/repos/eldr-rb/eldr/badge.svg?branch=master)](https://coveralls.io/r/eldr-rb/eldr?branch=master) [![Dependency Status](https://gemnasium.com/eldr-rb/eldr.svg)](https://gemnasium.com/eldr-rb/eldr) [![Inline docs](https://inch-ci.org/github/eldr-rb/eldr.svg?branch=master)](http://inch-ci.org/github/eldr-rb/eldr) [![Tips](https://img.shields.io/gratipay/k2052.svg)
 
 Eldr is a minimal ruby framework that doesn't hide the rack. It aims to be lightweight, simple, modular and above all, clear. Eldr is a ruby framework without all the magic.
 
@@ -126,13 +126,13 @@ For further usage examples checkout the  [https://github.com/eldr-rb/eldr/tree/m
 
 I have already built and released extensions for many common tasks:
 
-- [https://github.com/eldr-rb/eldr-sessions](eldr-sessions): session helpers like `signed_in?` and `current_user?`
-- [https://github.com/eldr-rb/eldr-rendering](eldr-rendering): a `render` helper for templating.
-- [https://github.com/eldr-rb/eldr-assets](eldr-assets): asset tag helpers like `js('jquery', 'app')`, `css('app')` etc
-- [https://github.com/eldr-rb/eldr-responders](eldr-responders): rails-responder like helpers
-- [https://github.com/eldr-rb/eldr-action](eldr-action): Action Objects
-- [https://github.com/eldr-rb/eldr-service](eldr-service): Action Objects for external services.
-- [https://github.com/eldr-rb/eldr-cascade](eldr-cascade): A fork of Rack::Cascade that plays well with Rack::Response and eldr-action.
+- [eldr-sessions](https://github.com/eldr-rb/eldr-sessions): session helpers like `signed_in?` and `current_user?`
+- [eldr-rendering](https://github.com/eldr-rb/eldr-rendering): a `render` helper for templating.
+- [eldr-assets](https://github.com/eldr-rb/eldr-assets): asset tag helpers like `js('jquery', 'app')`, `css('app')` etc
+- [eldr-responders](https://github.com/eldr-rb/eldr-responders): rails-responder like helpers
+- [eldr-action](https://github.com/eldr-rb/eldr-action): Action Objects
+- [eldr-service](https://github.com/eldr-rb/eldr-service): Action Objects for external services.
+- [eldr-cascade](https://github.com/eldr-rb/eldr-cascade): A fork of Rack::Cascade that plays well with Rack::Response and eldr-action.
 
 ## Quickstart Guides
 
@@ -213,7 +213,7 @@ end
 
 Using it, is as simple as including it!
 
-*Checkout*: [https://github.com/eldr-rb/eldr-rendering](eldr-rendering) for some pre-made rendering helpers.
+*Checkout*: [eldr-rendering](https://github.com/eldr-rb/eldr-rendering) for some pre-made rendering helpers.
 
 ### Before/After Filters
 

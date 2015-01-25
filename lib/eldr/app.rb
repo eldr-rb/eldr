@@ -32,7 +32,7 @@ module Eldr
       def call(env)
         new.call env
       end
-      
+
       def inherited(base)
         base.builder.use builder.middleware
         base.configuration.merge!(configuration)
