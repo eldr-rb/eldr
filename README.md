@@ -664,7 +664,7 @@ map '/users' do
 end
 ```
 
-If we wan to define all our controllers on the root we can use [https://github.com/eldr/eldr-cascade](eldr-cascade). We define the routes we want to override, Cascade will get a 404 on the ones we didn't, then call the next app until it gets a response:
+If we wan to define all our controllers on the root we can use [eldr-cascade](https://github.com/eldr-rb/eldr-cascade). We define the routes we want to override, Cascade will get a 404 on the ones we didn't, then call the next app until it gets a response:
 
 ```ruby
 class App
