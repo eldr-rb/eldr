@@ -6,5 +6,4 @@ RuboCop::RakeTask.new(:rubocop)
 
 task :default do
   Rake::Task['spec'].execute
-  Rake::Task['rubocop'].execute
 end
