@@ -177,7 +177,7 @@ When you visit http:///localhost:9292 in your browser you should see "Hello Worl
 
 ### Rendering a Template
 
-Eldr provides no render helper in it's core but it is easy to define your own.
+Eldr provides no render helper in its core but it is easy to define your own.
 One can use Tilt as the templating library (with your engine of choice) and then create some helper methods to handle finding the template and rendering it.
 
 Create a module with the following:
@@ -497,7 +497,7 @@ access_control do
 end
 ```
 
-The DSL pulled a route's name and it's roles into a before filter, then checked them against the current_user's roles. The filter itself was five lines.
+The DSL pulled a route's name and its roles into a before filter, then checked them against the current_user's roles. The filter itself was five lines.
 
 I soon realized that this was redundant abstraction. The DSL didn't save me any coding, it merely gave the code pretty words. I was sacrificing clarity for poetry.
 
