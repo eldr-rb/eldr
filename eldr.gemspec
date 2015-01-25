@@ -26,6 +26,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'rack-test', '0.6.2'
   s.add_development_dependency 'tilt',      '2.0.1'
   s.add_development_dependency 'slim',      '3.0.1'
+  s.add_development_dependency 'coveralls'
 
   s.files        = `git ls-files`.split("\n")
   s.executables  = `git ls-files`.split("\n").map{|f| f =~ /^bin\/(.*)/ ? $1 : nil}.compact

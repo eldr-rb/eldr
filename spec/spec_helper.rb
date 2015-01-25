@@ -1,3 +1,8 @@
+if ENV['COVERALLS_REPO_TOKEN']
+  require 'coveralls'
+  Coveralls.wear!
+end
+
 require 'rack/test'
 require 'rack'
 require_relative '../lib/eldr'
