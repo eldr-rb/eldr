@@ -1,4 +1,4 @@
-# Eldr
+# Eldr [![Build Status](https://travis-ci.org/eldr-rb/eldr.svg)](https://travis-ci.org/eldr-rb/eldr) [![Code Climate](https://codeclimate.com/github/eldr-rb/eldr/badges/gpa.svg)](https://codeclimate.com/github/eldr-rb/eldr) [![Coverage Status](https://coveralls.io/repos/eldr-rb/eldr/badge.svg)](https://coveralls.io/r/eldr-rb/eldr) [![Dependency Status](https://gemnasium.com/eldr-rb/eldr.svg)](https://gemnasium.com/eldr-rb/eldr) [![Inline docs](http://inch-ci.org/github/eldr-rb/eldr.svg?branch=master)](http://inch-ci.org/github/eldr-rb/eldr)
 
 Eldr is a minimal ruby framework that doesn't hide the rack. It aims to be lightweight, simple, modular and above all, clear. Eldr is a ruby framework without all the magic.
 
