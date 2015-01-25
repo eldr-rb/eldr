@@ -7,7 +7,7 @@ Gem::Specification.new do |s|
   s.platform    = Gem::Platform::RUBY
   s.authors     = ['K-2052']
   s.email       = ['k@2052.me']
-  s.homepage    = 'https://githum.com/eldr-rb/eldr'
+  s.homepage    = 'https://github.com/eldr-rb/eldr'
   s.summary     = 'A minimal framework that lights a fire in your development'
   s.description = 'A minimal framework that lights a fire in your development.
                    Built close to Rack and the metal.'
