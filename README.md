@@ -131,7 +131,6 @@ I have already built and released extensions for many common tasks:
 - [eldr-assets](https://github.com/eldr-rb/eldr-assets): asset tag helpers like `js('jquery', 'app')`, `css('app')` etc
 - [eldr-responders](https://github.com/eldr-rb/eldr-responders): rails-responder like helpers
 - [eldr-action](https://github.com/eldr-rb/eldr-action): Action Objects
-- [eldr-service](https://github.com/eldr-rb/eldr-service): Action Objects for external services.
 - [eldr-cascade](https://github.com/eldr-rb/eldr-cascade): A fork of Rack::Cascade that plays well with Rack::Response and eldr-action.
 
 ## Quickstart Guides
