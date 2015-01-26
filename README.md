@@ -131,7 +131,6 @@ I have already built and released extensions for many common tasks:
 - [eldr-assets](https://github.com/eldr-rb/eldr-assets): asset tag helpers like `js('jquery', 'app')`, `css('app')` etc
 - [eldr-responders](https://github.com/eldr-rb/eldr-responders): rails-responder like helpers
 - [eldr-action](https://github.com/eldr-rb/eldr-action): Action Objects
-- [eldr-cascade](https://github.com/eldr-rb/eldr-cascade): A fork of Rack::Cascade that plays well with Rack::Response and eldr-action.
 
 ## Quickstart Guides
 
@@ -663,9 +662,11 @@ map '/users' do
 end
 ```
 
-If we wan to define all our controllers on the root we can use [eldr-cascade](https://github.com/eldr-rb/eldr-cascade). We define the routes we want to override, Cascade will get a 404 on the ones we didn't, then call the next app until it gets a response:
+If we wan to define all our controllers on the root we can use Eldr::Cascade. We define the routes we want to override, Cascade will get a 404 on the ones we didn't, then call the next app until it gets a response:
 
 ```ruby
+require 'eldr'
+require 'eldr/cascade'
 class App
   # override the users post route but nothing else
   post '/users' do
