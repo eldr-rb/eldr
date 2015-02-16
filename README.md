@@ -56,9 +56,9 @@ end
     - [Helpers](#helpers)
     - [Rails Style Routing](#rails-style-routing)
     - [Rails Style Responses](#rails-style-responses)
+    - [Rails Style Requests](#rails-style-requests)
     - [Errors](#errors)
     - [Error Catching](#error-catching)
-    - [Rails Style Requests](#rails-style-requests)
     - [Conditions](#conditions)
     - [Access Control](#access-control)
     - [Inheritance](#inheritance)
@@ -357,57 +357,6 @@ end
 
 This simple pattern is enough to build all sorts of powerful abstractions.
 
-### Errors
-
-You can `raise` an error with any class that inherits from StandardError and responds to call. This is useful in before filters, when you want to halt a route from executing.
-
-An error class looks like this:
-
-```ruby
-class ErrorResponse < StandardErrro
-  def call(env)
-    Rack::Response.new message, 500
-  end
-end
-```
-
-And you can use it like a standard ruby error class:
-
-```ruby
-app = Edlr::App.new do
-  get '/' do
-    raise ErrorResponse, "Bad Data"
-  end
-end
-
-run app
-```
-
-### Error Catching
-
-Eldr will NOT catch all errors. In a production setting you will need to use middleware to make certain nothing ever explodes at your user. Something like [rack-robustness](https://github.com/blambeau/rack-robustness) will work fine:
-
-```ruby
-class App < Edlr::App
-  use Rack::Robustness do |g|
-    g.on(ArgumentError){|ex| 400 }
-    g.on(SecurityError){|ex| 403 }
-
-    g.content_type 'text/plain'
-
-    g.body{|ex|
-      ex.message
-    }
-
-    g.ensure(true){|ex|
-      env['rack.errors'].write(ex.message)
-    }
-  end
-end
-
-run App
-```
-
 ### Rails Style Requests
 
 Rails provides all sorts of ways to digest the data passed to it by a client. At their core they all operate on Rack's env object. They take Rack's env object and pass it off to a wrapper.
@@ -465,6 +414,57 @@ end
 ```
 
 If our parameters are invalid we raise an InvalidParams response (Eldr has error handling). If they are valid, then we create our Cat and return it as JSON.
+
+### Errors
+
+You can `raise` an error with any class that inherits from StandardError and responds to call. This is useful in before filters, when you want to halt a route from executing.
+
+An error class looks like this:
+
+```ruby
+class ErrorResponse < StandardErrro
+  def call(env)
+    Rack::Response.new message, 500
+  end
+end
+```
+
+And you can use it like a standard ruby error class:
+
+```ruby
+app = Edlr::App.new do
+  get '/' do
+    raise ErrorResponse, "Bad Data"
+  end
+end
+
+run app
+```
+
+### Error Catching
+
+Eldr will NOT catch all errors. In a production setting you will need to use middleware to make certain nothing ever explodes at your user. Something like [rack-robustness](https://github.com/blambeau/rack-robustness) will work fine:
+
+```ruby
+class App < Edlr::App
+  use Rack::Robustness do |g|
+    g.on(ArgumentError){|ex| 400 }
+    g.on(SecurityError){|ex| 403 }
+
+    g.content_type 'text/plain'
+
+    g.body{|ex|
+      ex.message
+    }
+
+    g.ensure(true){|ex|
+      env['rack.errors'].write(ex.message)
+    }
+  end
+end
+
+run App
+```
 
 ### Conditions
 
