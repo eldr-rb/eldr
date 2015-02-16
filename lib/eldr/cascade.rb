@@ -3,12 +3,14 @@
 # TODO: Get fixes into rack and remove this entirely
 module Eldr
   class Cascade
-    NotFound = [404, {'CONTENT-TYPE' => "text/plain"}, []]
+    NOTFOUND = [404, { 'CONTENT-TYPE' => 'text/plain' }, []]
 
     attr_reader :apps
 
-    def initialize(apps, catch=[404, 405])
-      @apps = []; @has_app = {}
+    def initialize(apps, catch = [404, 405])
+      @apps    = []
+      @has_app = {}
+
       apps.each { |app| add app }
 
       @catch = {}
@@ -16,7 +18,7 @@ module Eldr
     end
 
     def call(env)
-      result = NotFound
+      result = NOTFOUND
 
       last_body = nil
 

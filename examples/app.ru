@@ -18,7 +18,7 @@ class ExampleApp < Eldr::App
     @cats == 'Cats!'
   end
 
-  get '/posts' do |params|
+  get '/posts' do
     Rack::Response.new "posts", 200
   end
 

@@ -6,7 +6,7 @@ Eldr apps are rack apps like this:
 
 ```ruby
 class App < Eldr::App
-  get '/posts' do |params|
+  get '/posts' do
     Rack::Response.new "posts", 200
   end
 end
@@ -22,13 +22,13 @@ And when you want to combine them you can do this:
 
 ```ruby
 class Posts < Eldr::App
-  get '/' do |params|
+  get '/'
     Rack::Response.new "posts", 200
   end
 end
 
 class Tasks < Eldr::App
-  get '/' do |params|
+  get '/'
     Rack::Response.new "tasks", 200
   end
 end
@@ -152,7 +152,7 @@ Now create a new file called app.rb with the following contents:
 
 ```ruby
 class App < Eldr::App
-  get '/' do |params|
+  get '/' do
     Rack::Response.new "Hello World!", 200
   end
 end
@@ -523,7 +523,7 @@ This allows you to define a base app and allow all your controllers to share the
 For example:
 
 ```ruby
-class SimpleMiddleware
+class SimpleCounterMiddleware
   def initialize(app)
     @app = app
   end

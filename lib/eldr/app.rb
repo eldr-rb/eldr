@@ -89,16 +89,15 @@ module Eldr
           handler ||= args.pop if args.last.respond_to?(:call)
           options ||= args.pop if args.last.is_a?(Hash)
           options ||= {}
-          add(verb: verb.downcase.to_sym, path: path, handler: handler, options: options)
+          add({ verb: verb.downcase.to_sym, path: path, handler: handler }.merge!(options))
         end
       end
 
-      def add(verb: :get, path: '/', options: {}, handler: nil)
-        handler = Proc.new if block_given?
-        route = Route.new(verb: verb, path: path, options: options, handler: handler)
+      def add(verb: :get, **route_attributes)
+        route = Route.new(route_attributes)
 
         route.before_filters.push(*before_filters[route.name]) if before_filters.include? route.name
-        route.after_filters.push(*after_filters[route.name]) if after_filters.include? route.name
+        route.after_filters.push(*after_filters[route.name])   if after_filters.include? route.name
 
         routes[verb] << route
         route

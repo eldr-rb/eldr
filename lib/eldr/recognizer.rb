@@ -19,6 +19,7 @@ module Eldr
 
       ret_routes = routes[verb].select { |route| !route.match(pattern).nil? }
       raise NotFound if ret_routes.empty?
+      ret_routes.sort! { |a, b| a.order <=> b.order }
       ret_routes
     end
 

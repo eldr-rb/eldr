@@ -1,71 +1,61 @@
 module Eldr
   class Route
-    attr_accessor :name, :app, :capture, :order, :options, :handler
-    attr_accessor :before_filters, :after_filters, :to
+    attr_accessor :app, :verb, :path, :name, :order, :handler, :before_filters, :after_filters
 
-    def initialize(verb: :get, path: '/', name: nil, options: {}, handler: nil, app: nil)
-      @path, @verb = path, verb.to_s.upcase
+    def initialize(verb: :get, path: '/', name: nil, order: 0, handler: nil, to: nil)
+      @verb, @path, @name, @order = verb.to_s.upcase, path, name, order
+      @before_filters, @after_filters = [], []
+      handler  ||= to
+      @handler = create_handler(handler)
+    end
 
-      @app            = app
-      @capture        = {}
-      @before_filters = []
-      @after_filters  = []
-      @name           = name
+    def create_handler(handler)
+      return handler unless handler.is_a? String
 
-      merge_with_options!(options)
+      controller, method = handler.split('#')
 
-      @handler   = handler
-      @handler ||= @to
+      proc do |env|
+        obj = Object.const_get(controller).new
+        obj.send(method.to_sym, env)
+      end
     end
 
     def call(env, app: nil)
-      # TODO: Investigate
-      # maybe if we passed this around between methods it would be more perfomant
-      # than setting the accessor?
       @app = app
 
-      app.class.before_filters[:all].each { |filter| app.instance_exec(env, &filter) } if app
-      @before_filters.each                { |filter| app.instance_exec(env, &filter) }
+      call_before_filters(env)
 
-      resp = response(env)
+      resp = call_handler(env)
 
-      app.class.after_filters[:all].each { |filter| app.instance_exec(env, &filter) } if app
-      @after_filters.each                { |filter| app.instance_exec(env, &filter) }
+      call_after_filters(env)
 
       resp
     end
 
-    def response(env)
-      if @handler.is_a? Proc
-        app.instance_exec(env, &@handler)
-      elsif @handler.is_a? String
-        rails_style_response(env)
+    def call_before_filters(env)
+      if app
+        app.class.before_filters[:all].each { |filter| app.instance_exec(env, &filter) }
+        before_filters.each                 { |filter| app.instance_exec(env, &filter) }
       else
-        @handler.call(env)
+        before_filters.each { |filter| filter.call(env) }
       end
     end
 
-    def rails_style_response(env)
-      controller, method = @handler.split('#')
-
-      obj = Object.const_get(controller).new
-
-      if method
-        obj.send(method.to_sym, env)
+    def call_after_filters(env)
+      if app
+        app.class.after_filters[:all].each { |filter| app.instance_exec(env, &filter) }
+        after_filters.each                 { |filter| app.instance_exec(env, &filter) }
       else
-        obj.call(env)
+        after_filters.each { |filter| filter.call(env) }
       end
     end
 
-    def merge_with_options!(options)
-      @options = {} unless @options
-      options.each_pair do |key, value|
-        accessor?(key) ? __send__("#{key}=", value) : (@options[key] = value)
+    def call_handler(env)
+      if app and handler.is_a? Proc
+        app.instance_exec(env, &handler)
+      else
+        handler.call(env)
       end
-    end
-
-    def accessor?(key)
-      respond_to?("#{key}=") && respond_to?(key)
     end
 
     def matcher
@@ -76,17 +66,9 @@ module Eldr
       matcher.match(pattern)
     end
 
-    def path(*args)
-      return @path if args.empty?
-      params = args[0]
-      params.delete(:captures)
-      matcher.expand(params)
-    end
-
     def params(pattern)
       params   = matcher.handler.params(pattern)
-      params ||= {}
-      params
+      params ||= {} # rubocop:disable Lint/UselessAssignment
     end
   end
 end

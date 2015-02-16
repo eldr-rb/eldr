@@ -17,28 +17,20 @@ describe Eldr::Route do
     end
 
     it 'takes options and sets them' do
-      route = Eldr::Route.new(options: { name: :cats })
+      route = Eldr::Route.new(name: :cats)
       expect(route.name).to eq(:cats)
     end
   end
 
-  describe '#response' do
-    let(:route) do
-      Eldr::Route.new(handler: proc { 'cats' })
-    end
+  describe '#create_handler' do
+    context 'rails style handler' do
+      let(:route) do
+        Eldr::Route.new(handler: 'CatsHandler#index')
+      end
 
-    it 'determines type of handler and calls it' do
-      expect(route.response({})).to eq('cats')
-    end
-  end
-
-  describe '#rails_style_response' do
-    let(:route) do
-      Eldr::Route.new(handler: 'CatsHandler#index')
-    end
-
-    it 'calls a handler using a string like Controller#action' do
-      expect(route.response({})).to eq('cats')
+      it 'wraps the handler in a proc' do
+        expect(route.create_handler('CatsHandler#index')).to be_a Proc
+      end
     end
   end
 
