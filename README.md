@@ -122,7 +122,7 @@ post '/', proc { [201, {'Content-Type' => 'txt'}, ['Hello World!']]}
 
 etc...
 
-For further usage examples checkout the  [https://github.com/eldr-rb/eldr/tree/master/examples](examples folder)
+For further usage examples checkout the [examples folder](https://github.com/eldr-rb/eldr/tree/master/examples)
 
 I have already built and released extensions for many common tasks:
 
