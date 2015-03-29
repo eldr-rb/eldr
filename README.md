@@ -853,7 +853,7 @@ You can get help from the following places:
 - [@k_2052](http://twitter.com/k_2052) Feel free to mention me on twitter for quick questions
 - [The Mailing List](https://groups.google.com/forum/#!forum/eldr-ruby) For questions that aren't a bug or feature request
 - [The examples folder](https://github.com/eldr-rb/eldr/tree/master/examples) in this repo has full runnable versions of the quickstart's examples
-- [BuildYourOwnSinatra.com](http://buildyourownsinatra.com) A companiion book on building Eldr
+- [BuildYourOwnSinatra.com](http://buildyourownsinatra.com) A companion book on building Eldr
 - [Issues](https://github.com/eldr-rb/eldr/issues) on this repo for bug reports and feature requests
 - And of course checkout the GitHub org [eldr-rb/](https://github.com/eldr-rbg) for all the Eldr gems.
 
