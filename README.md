@@ -844,7 +844,7 @@ Eldr has been built with perfomance in mind. Right now it performs in the middle
 | scorched      |     1692.18   |    16.46%   |
 | ramaze        |     1490.42   |     14.5%   |
 
-See the [https://github.com/eldr-rb/bench-micro](bench-micro) repo to run your own perfomance benchmarks
+See the [bench-micro](https://github.com/eldr-rb/bench-micro) repo to run your own perfomance benchmarks
 
 ## Help/Resources
 
@@ -855,7 +855,7 @@ You can get help from the following places:
 - [The examples folder](https://github.com/eldr-rb/eldr/tree/master/examples) in this repo has full runnable versions of the quickstart's examples
 - [BuildYourOwnSinatra.com](http://buildyourownsinatra.com) A companion book on building Eldr
 - [Issues](https://github.com/eldr-rb/eldr/issues) on this repo for bug reports and feature requests
-- And of course checkout the GitHub org [eldr-rb/](https://github.com/eldr-rbg) for all the Eldr gems.
+- And of course checkout the GitHub org [eldr-rb/](https://github.com/eldr-rb) for all the Eldr gems.
 
 ## Contributing
 
