@@ -1,7 +1,8 @@
-describe 'RailsStyleRoutingExample' do
+# frozen_string_literal: true
+
+RSpec.describe 'RailsStyleRoutingExample' do
   let(:app) do
-    path = File.expand_path("../../examples/rails_style_routing.ru", File.dirname(__FILE__))
-    Rack::Builder.parse_file(path).first
+    load_example_app('../examples/rails_style_routing.ru')
   end
 
   let(:rt) do

@@ -1,11 +1,20 @@
+# frozen_string_literal: true
+
 module Eldr
+  # A single route: a verb + path pattern + handler, with optional before/after
+  # filters. Handlers may be a Proc, any object responding to +#call+, or a
+  # Rails-style "Controller#action" string.
   class Route
     attr_accessor :app, :verb, :path, :name, :order, :handler, :before_filters, :after_filters
 
     def initialize(verb: :get, path: '/', name: nil, order: 0, handler: nil, to: nil)
-      @verb, @path, @name, @order = verb.to_s.upcase, path, name, order
-      @before_filters, @after_filters = [], []
-      handler  ||= to
+      @verb = verb.to_s.upcase
+      @path = path
+      @name = name
+      @order = order
+      @before_filters = []
+      @after_filters = []
+      handler ||= to
       @handler = create_handler(handler)
     end
 
@@ -67,8 +76,7 @@ module Eldr
     end
 
     def params(pattern)
-      params   = matcher.handler.params(pattern)
-      params ||= {} # rubocop:disable Lint/UselessAssignment
+      matcher.handler.params(pattern) || {}
     end
   end
 end

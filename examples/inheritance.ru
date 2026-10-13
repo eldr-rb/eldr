@@ -1,4 +1,4 @@
-class SimpleMiddleware
+class SimpleCounterMiddleware
   def initialize(app)
     @app = app
   end
@@ -16,7 +16,7 @@ class TestInheritanceApp < Eldr::App
 end
 
 class InheritedApp < TestInheritanceApp
-  get '/', proc { [200, {}, [env['eldr.simple_counter']]]}
+  get '/', proc { [200, {}, [env['eldr.simple_counter'].to_s]]}
 end
 
 run InheritedApp

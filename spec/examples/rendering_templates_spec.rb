@@ -1,7 +1,8 @@
-describe 'RenderingTemplatesExample' do
+# frozen_string_literal: true
+
+RSpec.describe 'RenderingTemplatesExample' do
   let(:app) do
-    path = File.expand_path("../../examples/rendering_templates.ru", File.dirname(__FILE__))
-    Rack::Builder.parse_file(path).first
+    load_example_app('../examples/rendering_templates.ru')
   end
 
   let(:rt) do
@@ -9,10 +10,10 @@ describe 'RenderingTemplatesExample' do
   end
 
   describe 'GET /cats' do
-    it "should return a template" do
+    it 'returns a template' do
       response = rt.get '/cats'
-      file_path = File.expand_path("../../examples/views/cats.slim", File.dirname(__FILE__))
-      expect(response.body).to eq Tilt.new(file_path).render()
+      file_path = File.expand_path('../../examples/views/cats.slim', File.dirname(__FILE__))
+      expect(response.body).to eq Tilt.new(file_path).render
     end
   end
 

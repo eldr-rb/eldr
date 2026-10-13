@@ -18,7 +18,7 @@ module RenderingHelpers
 
   def find_template(path)
     template = File.join(__dir__, 'views', path)
-    raise RenderingResponses::NotFound, 'Template Not Found' unless File.exists? template
+    raise RenderingResponses::NotFound, 'Template Not Found' unless File.exist? template
     template
   end
 end

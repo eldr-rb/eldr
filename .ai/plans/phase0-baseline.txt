@@ -1,0 +1,40 @@
+      # ./spec/recognizer_spec.rb:6:in 'block (3 levels) in <top (required)>'
+      # ./spec/recognizer_spec.rb:10:in 'block (3 levels) in <top (required)>'
+      # ./spec/recognizer_spec.rb:18:in 'block (4 levels) in <top (required)>'
+
+Finished in 0.05006 seconds (files took 0.0757 seconds to load)
+85 examples, 30 failures
+
+Failed examples:
+
+rspec ./spec/app_spec.rb:67 # Eldr::App.add adds a route to self.routes
+rspec ./spec/app_spec.rb:98 # Eldr::App#recognize recognizes and returns a route for a given pattern
+rspec ./spec/app_spec.rb:166 # Eldr::App#call! sets eldr.route
+rspec ./spec/app_spec.rb:171 # Eldr::App#call! sets eldr.params
+rspec ./spec/app_spec.rb:177 # Eldr::App#call! when passing/deferring calls the next matching route
+rspec ./spec/app_spec.rb:183 # Eldr::App#call! when raising an error catches the error and returns a response
+rspec ./spec/app_spec.rb:189 # Eldr::App#call! when route does not exist returns a 404
+rspec ./spec/examples/action_objects_spec.rb:12 # ActionObjectsExample GET /cats/bob returns bob
+rspec ./spec/examples/builder_spec.rb:12 # BuilderExample GET / does some counting using middleware
+rspec ./spec/examples/custom_response_spec.rb:12 # CustomResponseExample GET / returns hello world
+rspec ./spec/examples/errors_spec.rb:12 # ErrorsExample GET / returns an error
+rspec ./spec/examples/example_app_spec.rb:16 # ExampleApp GET /posts returns a 200 status
+rspec ./spec/examples/example_app_spec.rb:23 # ExampleApp POST /posts returns a 201 status
+rspec ./spec/examples/example_app_spec.rb:30 # ExampleApp PUT /posts returns a 200 status
+rspec ./spec/examples/example_app_spec.rb:37 # ExampleApp DELETE /posts returns a 201 status
+rspec ./spec/examples/example_app_spec.rb:44 # ExampleApp GET /state does not maintain state between requests
+rspec ./spec/examples/example_app_spec.rb:54 # ExampleApp before and after filters GET / comes out in the correct order
+rspec ./spec/examples/example_app_spec.rb:79 # ExampleApp GET /raises-an-error returns a 404 status
+rspec ./spec/examples/example_app_spec.rb:86 # ExampleApp GET /defer defers a route
+rspec ./spec/examples/example_app_spec.rb:93 # ExampleApp GET /posts/:id returns a posts id
+rspec ./spec/examples/hello_world_spec.rb:12 # HelloWorldExample GET / returns hello world
+rspec ./spec/examples/inheritance_spec.rb:12 # InheritedApp GET / counts using counter middleware
+rspec ./spec/examples/inheritance_spec.rb:19 # InheritedApp .configuration#bob returns "what about him?"
+rspec ./spec/examples/multiple_apps_spec.rb:12 # MultipleAppsExample GET / returns hello world
+rspec ./spec/examples/multiple_apps_spec.rb:19 # MultipleAppsExample GET /cats returns cats
+rspec ./spec/examples/multiple_apps_spec.rb:26 # MultipleAppsExample GET /dogs returns dogs
+rspec ./spec/examples/rails_style_routing_spec.rb:12 # RailsStyleRoutingExample GET /cats returns a greeting from cats
+rspec ./spec/examples/rendering_templates_spec.rb:12 # RenderingTemplatesExample GET /cats should return a template
+rspec ./spec/examples/rendering_templates_spec.rb:20 # RenderingTemplatesExample GET /no-template returns 404
+rspec ./spec/recognizer_spec.rb:17 # Eldr::Recognizer#call when there are matching routes returns matching routes
+

@@ -1,5 +1,5 @@
 # -*- encoding: utf-8 -*-
-require File.expand_path('../lib/eldr/version', __FILE__)
+require_relative 'lib/eldr/version'
 
 Gem::Specification.new do |s|
   s.name        = 'eldr'
@@ -13,22 +13,22 @@ Gem::Specification.new do |s|
                    Built close to Rack and the metal.'
   s.licenses    = ['MIT']
 
-  s.required_rubygems_version = '~> 2.0'
-  s.required_ruby_version     = '~> 2.0'
-  s.rubyforge_project         = 'eldr'
+  s.required_ruby_version = '>= 3.1'
 
-  s.add_dependency 'rack',       '~> 1.5'
-  s.add_dependency 'mustermann', '0.4.0'
-  s.add_dependency 'fast_blank', '0.0.2'
+  s.add_dependency 'rack',       '~> 3.0'
+  s.add_dependency 'mustermann', '~> 1.1'
+  s.add_dependency 'fast_blank', '~> 1.0'
 
-  s.add_development_dependency 'bundler',   '~> 1.7'
-  s.add_development_dependency 'rake',      '10.4.2'
-  s.add_development_dependency 'rspec',     '3.1.0'
-  s.add_development_dependency 'rubocop',   '0.28.0'
-  s.add_development_dependency 'rack-test', '~> 0.6'
-  s.add_development_dependency 'tilt',      '2.0.1'
-  s.add_development_dependency 'slim',      '3.0.1'
-  s.add_development_dependency 'coveralls', '~> 0.7'
+  s.add_development_dependency 'rake',      '~> 13.0'
+  s.add_development_dependency 'rspec',     '~> 3.13'
+  s.add_development_dependency 'rubocop',   '~> 1.69'
+  s.add_development_dependency 'rubocop-rspec', '~> 3.0'
+  s.add_development_dependency 'rack-test', '~> 2.1'
+  s.add_development_dependency 'rackup',    '~> 2.2'
+  s.add_development_dependency 'webrick',   '~> 1.8'
+  s.add_development_dependency 'tilt',      '~> 2.9'
+  s.add_development_dependency 'slim',      '~> 5.0'
+  s.add_development_dependency 'simplecov', '~> 1.1'
 
   s.files        = `git ls-files`.split("\n")
   s.executables  = `git ls-files`.split("\n").map{|f| f =~ /^bin\/(.*)/ ? $1 : nil}.compact

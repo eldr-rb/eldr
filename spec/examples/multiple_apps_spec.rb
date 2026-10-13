@@ -1,7 +1,8 @@
-describe 'MultipleAppsExample' do
+# frozen_string_literal: true
+
+RSpec.describe 'MultipleAppsExample' do
   let(:app) do
-    path = File.expand_path("../../examples/multiple_apps.ru", File.dirname(__FILE__))
-    Rack::Builder.parse_file(path).first
+    load_example_app('../examples/multiple_apps.ru')
   end
 
   let(:rt) do

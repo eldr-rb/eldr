@@ -1,7 +1,8 @@
-describe 'HelloWorldExample' do
+# frozen_string_literal: true
+
+RSpec.describe 'HelloWorldExample' do
   let(:app) do
-    path = File.expand_path("../../examples/hello_world.ru", File.dirname(__FILE__))
-    Rack::Builder.parse_file(path).first
+    load_example_app('../examples/hello_world.ru')
   end
 
   let(:rt) do

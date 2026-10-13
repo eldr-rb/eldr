@@ -1,7 +1,8 @@
-describe 'CustomResponseExample' do
+# frozen_string_literal: true
+
+RSpec.describe 'CustomResponseExample' do
   let(:app) do
-    path = File.expand_path("../../examples/custom_response.ru", File.dirname(__FILE__))
-    Rack::Builder.parse_file(path).first
+    load_example_app('../examples/custom_response.ru')
   end
 
   let(:rt) do

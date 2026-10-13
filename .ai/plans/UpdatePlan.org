@@ -1,0 +1,616 @@
+#+TITLE: Eldr Modernization & Full-Test Plan
+#+AUTHOR: K-2052 (agent-assisted)
+#+DATE: [2026-03-11]
+
+* Executive Summary
+
+Eldr is a minimal Rack-based micro-framework (~8 lib files, ~500 LOC) last
+touched in March 2015. It is pinned to Ruby 2.1.5 and a stack of 2014-era
+dependencies (Rack 1.6, mustermann 0.4, rspec 3.1, rubocop 0.28). On the
+current toolchain (Ruby 3.4, Bundler 2.6) the project will not even =bundle
+install=, because the =Gemfile= hard-codes =ruby '2.1.5'=.
+
+Modernizing it requires three intertwined migrations:
+
+  1. *Ruby 2.1 -> 3.x* — most importantly the Ruby 3.0 keyword-argument
+     separation, which silently breaks the core route-adding API
+     (=Route.new(hash)=, =add({...})=).
+  2. *Rack 1.x -> 3.x* — a major rewrite: headers must be lowercase,
+     bodies must be enumerables (no bare =Array/String= body),
+     =Rack::MockRequest= / =Rack::MockResponse= were removed, and
+     =Rack::Builder= internals changed.
+  3. *mustermann 0.4 -> 4.x* — API and default type changes for the route
+     matcher.
+
+The plan below is phased so that each step is independently verifiable,
+ends with a green test run, and never leaves the repo in a broken state.
+The end state is: eldr runs on Ruby 3.4+, Rack 3.2, mustermann 4.0, with a
+modern rspec/rubocop stack, 100% of the existing behavior covered by an
+expanded test suite, and CI on GitHub Actions.
+
+* Review Status (2026-08-23)
+
+Reviewed against the working tree on Ruby 3.4.9 (Rack 3.2.7, mustermann 1.1.2,
+rubocop 1.89.0, simplecov 1.1.1):
+
+- =bundle exec rspec= — 127 examples, 0 failures.
+- =COVERAGE=1 bundle exec rspec= — line 251/251 (100.00%), branch 57/57
+  (100.00%), gate at =line: 100, branch: 100= (exceeds this plan's >= 95%).
+- =bundle exec rubocop= — 30 files inspected, no offenses.
+- =bundle exec rake= — rubocop + spec green.
+
+Completed: Phases 0, 1, 4, 5 in full, and the bulk of Phases 6, 7, 8.
+
+Remaining / deferred (deliberately left unchecked below):
+
+- *2.1 mustermann*. The final gemspec pins =mustermann '~> 1.1'=, not =~> 3.0=.
+  The 0.4 -> 1.1 bump is Ruby 3 safe and the =capture= contract is covered by
+  specs; jumping to 3.x/4.x was not done.
+- *3b / 6.2 Rack::MockRequest*. Rack 3.2 still ships =Rack::MockRequest=, so
+  =env_for= still works and was kept. No =spec/support/env_helper.rb= was
+  added. The task's premise ("MockRequest removed in Rack 3") is stale for
+  Rack 3.2.
+- *6a shared =let(:rt)=*. Spec loading is centralized in
+  =spec/support/example_app.rb=, but all 11 example specs still define their
+  own =let(:rt)= / =Rack::Test::Session=.
+- *7.4 RDoc/YARD*. Public classes are commented, but method-level docs and the
+  =Rdocs= item in =TODOS= remain open.
+- *8.6 / multi-Ruby acceptance*. GitHub Actions has not been run (change is
+  uncommitted); the suite is verified locally on Ruby 3.4 only.
+
+* Current-State Inventory
+
+** Repository facts
+- Last commit: 2015-03-30 (~11 years ago).
+- ~14 source files in =lib/=, ~21 spec files, ~11 =.ru= examples.
+- Two toy deps beyond Rack: =mustermann= (routing patterns) and
+  =fast_blank= (=String#blank?=).
+- Dev deps: bundler 1.7, rake 10.4.2, rspec 3.1.0, rubocop 0.28.0,
+  rack-test 0.6, tilt 2.0.1, slim 3.0.1, coveralls 0.7.
+
+** Dependency pin matrix (current -> target)
+
+| Dependency   | Current (pinned) | Latest stable | Action                              |
+|--------------+------------------+---------------+-------------------------------------|
+| ruby         | 2.1.5 (Gemfile)  | 3.4.x          | Require >= 3.1                      |
+| rack         | ~> 1.5 (1.6.0)   | 3.2.7          | Upgrade to ~> 3.0 (major breakage)   |
+| mustermann   | 0.4.0            | 4.0.0          | Upgrade to ~> 3.0 or 4.0            |
+| fast_blank   | 0.0.2            | 1.0.1          | Upgrade to ~> 1.0 (drop-in)         |
+| rack-test    | ~> 0.6           | 2.2.0          | Upgrade to ~> 2.1 (Rack 3 support)  |
+| rspec        | 3.1.0            | 3.13.2         | Upgrade to ~> 3.13                  |
+| rubocop     | 0.28.0           | 1.89.0         | Upgrade to ~> 1.89, regenerate todo |
+| rake         | 10.4.2           | 13.4.2         | Upgrade to ~> 13.0                   |
+| tilt         | 2.0.1            | 2.9.0          | Upgrade to ~> 2.9                    |
+| slim         | 3.0.1            | 5.2.2          | Upgrade to ~> 5.0                    |
+| simplecov    | (coveralls)      | 1.1.1          | Replace coveralls w/ simplecov       |
+| bundler      | ~> 1.7            | 2.6.x          | Drop pin from gemspec                |
+
+** Known / anticipated incompatibilities (by file)
+
+| File                         | Issue                                                                 |
+|------------------------------+-----------------------------------------------------------------------|
+| =Gemfile=                      | =ruby '2.1.5'= blocks =bundle install= entirely                          |
+| =Gemfile.lock=                 | Stale, must be regenerated                                            |
+| =eldr.gemspec=                 | =required_ruby_version '~> 2.0'=, =rubyforge_project= (removed), =bundler= dev pin |
+| =lib/eldr/app.rb=              | =Route.new(route_attributes)= and =add({...})= break under Ruby 3 kwargs |
+| =lib/eldr/app.rb=              | =Proc.new(&block)= — works but style; rubocop will flag                |
+| =lib/eldr/app.rb=              | =alias_method :_new, :new= + overridden =new= — fragile but functions   |
+| =lib/eldr/builder.rb=          | Subclasses =Rack::Builder=; overrides =use/to_app/generate_map=         |
+| =lib/eldr/builder.rb=          | bare =URLMap= constant — may not resolve; switch to =Rack::URLMap=       |
+| =lib/eldr/builder.rb=          | =fail '...'= — works, modernize to =raise=                              |
+| =lib/eldr/cascade.rb=          | Header ='CONTENT-TYPE'= uppercase — invalid under Rack 3               |
+| =lib/eldr/cascade.rb=          | Body =[]= for NOTFOUND — fine (empty array iterates)                    |
+| =lib/eldr/configuration.rb=    | =method_missing= without =respond_to_missing?= — rubocop + correctness   |
+| =lib/eldr/matcher.rb=         | =Mustermann.new(path, capture:)= — verify =capture= still supported in 4.x |
+| =lib/eldr/recognizer.rb=      | =@pattern.blank?= uses fast_blank — drop-in compatible                  |
+| =lib/eldr/route.rb=            | =def initialize(verb: ..., **)= called with positional Hash elsewhere    |
+| =lib/eldr/route.rb=            | =params ||= {}= useless assignment (already noted by old rubocop)     |
+| =lib/eldr/route.rb=            | =create_handler= uses =Object.const_get= — fine; consider =safe=         |
+| spec files (all)              | =Rack::MockRequest.env_for= removed in Rack 3 — replace with =Rack::Test= / =Rack::MockRequest= from rack-test, or =Rack::Test::Session= |
+| spec files (all)              | =expect_any_instance_of= (rspec-mocks) deprecated-ish but works         |
+| =.rubocop.yml= / =.rubocop_todo.yml= | Cop names/Schema changed massively since 0.28; must regenerate         |
+| =.travis.yml=                  | Travis CI is dead for OSS; replace with GitHub Actions                 |
+| examples =.ru=                 | All return =Rack::Response.new= or =[status, {}, [body]]= — validate under Rack 3 |
+| =examples/multiple_apps.ru=    | Top-level =map=/=run= inside an =Eldr::App= class body — relies on =def_delegators= |
+
+* Goals & Non-Goals
+
+** Goals
+- G1. The gem installs and runs cleanly on Ruby 3.1, 3.2, 3.3, 3.4.
+- G2. All existing example apps (the =.ru= files) behave identically
+     after migration, verified by the example specs.
+- G3. All existing unit specs pass without modification of intent.
+- G4. Test coverage is expanded to close gaps (Configuration edge
+     cases, Builder URLMap path, Cascade, error-as-response paths).
+- G5. RuboCop runs clean under a modern config; lints enforced in CI.
+- G6. CI runs on GitHub Actions for the supported Ruby matrix.
+- G7. Public API (the DSL in =Eldr::App=) is preserved; any breaking
+     change is documented in a CHANGELOG and the README.
+
+** Non-Goals
+- A rewrite (we keep the architecture and the DSL).
+- Adding new features (templates, ORM, etc.) — only modernization.
+- Reaching Sinatra parity; eldr stays minimal.
+- Supporting Rack 2 in parallel — single target = Rack 3.
+
+* Phased Plan
+
+Each phase ends with: =bundle exec rake= green (or an explicit
+checkpoint). Do not start a later phase until the prior one is green.
+
+** Phase 0 — Bootstrap: get *something* running
+The project cannot even install today. Goal of this phase is a green
+=bundle install= and a (likely red) =bundle exec rspec= so we have a
+baseline.
+
+Steps:
+1. [X] Remove =ruby '2.1.5'= from =Gemfile=; leave only =source 'https://rubygems.org'= and =gemspec=.
+2. [X] Delete =Gemfile.lock= (regenerated later).
+3. [X] Temporarily relax the gemspec to a *compatibility bridge* so we
+       can isolate Ruby-3 fixes from Rack-3 fixes: keep =rack '~> 2.2'=
+       and =mustermann '~> 1.1'= while we fix Ruby 3 kwargs. (We jump to
+       Rack 3 in Phase 3.) Rationale: Rack 2.2 still ships
+       =Rack::MockRequest=, so most specs run before we tackle the Rack
+       3 body/header changes.
+4. [X] Update dev deps to a working modern-but-bridge set: rspec ~> 3.13,
+       rack-test ~> 2.1, rubocop ~> 1.89, rake ~> 13.0, tilt ~> 2.9,
+       slim ~> 5.0, simplecov ~> 1.1 (drop coveralls for now).
+5. [X] In =eldr.gemspec=: set =required_ruby_version '>= 3.1'=, remove
+       =required_rubygems_version= and =rubyforge_project=, remove the
+       =bundler= dev dependency pin, use =require_relative= instead of
+       =File.expand_path('../lib/eldr/version', __FILE__)= (still fine,
+       but modernize).
+6. [X] =bundle install=, capture the (red) rspec output as the Phase 1
+       starting point.
+
+Checkpoint: =bundle install= succeeds; =bundle exec rspec= runs (failures
+expected and recorded in =.ai/plans/phase0-baseline.txt=).
+
+** Phase 1 — Ruby 3.x keyword-argument compatibility
+This is the single highest-risk correctness bug and it is invisible:
+the route DSL appears to work but silently mis-handles kwargs.
+
+Affected call sites (exhaustive):
+
+- =lib/eldr/app.rb= :: =Route.new(route_attributes)=
+     -> change to =Route.new(**route_attributes)=.
+- =lib/eldr/app.rb= :: the per-verb DSL =add({ verb: ..., path: ...,
+     handler: ... }.merge!(options))=
+     -> change to =add(**{ verb: ..., path: ..., handler: ... }.merge!(options))=
+     (or build the hash then =add(**h)=).
+- =lib/eldr/app.rb= :: =add= signature is =def add(verb: :get,
+     **route_attributes)= — already keyword-only; keep, but ensure all
+     callers splat.
+- =lib/eldr/route.rb= :: =def initialize(verb: :get, path: '/', name:
+     nil, order: 0, handler: nil, to: nil)= — keyword-only. Verify all
+     spec/example call sites pass keywords (they do: =Route.new(name:
+     :cats)= etc.).
+- =lib/eldr/app.rb= :: =inherited(base)= calls
+     =base.builder.use builder.middleware= — fine.
+- =lib/eldr/app.rb= :: =call= / =call!= — no kwargs.
+- =lib/eldr/app.rb= :: =before(*keys, &block)= — note the
+     =*keys = [:all] if keys.empty?= idiom works but is odd; consider
+     =keys = [:all] if keys.empty?=. (Not a correctness bug; style.)
+
+Guard rail: add a focused spec in =spec/app_spec.rb= that registers a
+route via the block DSL with an options hash (=get '/x', name: :foo do
+... end=) and asserts the route is created with =name == :foo=. This is
+the regression test that would have caught the original Ruby 3 break.
+
+Checkpoint: =bundle exec rspec= — unit specs green (Rack::MockRequest
+still available under Rack 2.2 bridge).
+
+** Phase 2 — mustermann 0.4 -> modern mustermann
+- [ ] Bump =mustermann= to =~> 3.0= (or 4.0) in gemspec.
+      Deferred: final gemspec pins =~> 1.1= by decision (Ruby 3 compatible);
+      see CHANGELOG 0.1.0 and Review Status above.
+- [X] Audit =lib/eldr/matcher.rb=: =Mustermann.new(@path, capture:
+      @capture)=. Verify the =capture= option is still honored in
+      mustermann 3/4 (it is, but the default =type= is =sinatra=; confirm
+      behavior of =:name= params extraction via =pattern.params(string)=).
+- [X] Audit =lib/eldr/route.rb#params=: =matcher.handler.params(pattern)=
+      returns a Hash or =nil= in modern mustermann. Keep the
+      =params ||= {}= removal (it is dead code today).
+- [X] Add a spec for a route with a regex =path= (=Matcher.new(/regex/)=)
+      since that branch is currently untested.
+- [X] Add a spec for the =capture= option (e.g. =capture: { id: /\d+/ }=)
+      to lock the mustermann feature contract.
+
+Checkpoint: =spec/matcher_spec.rb= and =spec/route_spec.rb= green on
+modern mustermann.
+
+** Phase 3 — Rack 1.x -> Rack 3.x
+This is the largest phase. Break it into sub-steps, each green.
+
+*** 3a. Body & header conformance
+- [X] Audit every response triple in =examples/*.ru= and the lib:
+      - Headers must be lowercase strings (Rack 3 enforces this;
+        =Eldr::Cascade::NOTFOUND= uses ='CONTENT-TYPE'= -> fix to
+        ='content-type'=).
+      - Bodies must be an =each=-able enumerable of Strings. Existing
+        =Rack::Response.new(...)= calls are fine (=Rack::Response=
+        remains valid and yields properly). The bare =[200, {}, ['']]=
+        style is fine (Array of one String).
+      - =[200, {}, [@state]]= where =@state= is an Integer — Rack 3
+        requires String bodies; wrap with =.to_s= (fix in
+        =examples/app.rb= =/state= route).
+- [X] =Eldr::Cascade=: confirm empty =[]= body is acceptable (it is;
+      an empty Array responds to =each=). Add a header-lowercase fix.
+
+*** 3b. Rack::MockRequest removal in specs
+- [ ] =Rack::MockRequest= and =Rack::MockResponse= were removed from
+      Rack 3. Replace all =Rack::MockRequest.env_for(path, method: :get)=
+      with =Rack::Test::Session.new(app).env_for(path, method: :get)= OR
+      build envs via a small helper. Prefer switching the unit specs to
+      =Rack::Test::Session= entirely so request-level assertions use the
+      same path as the example specs.
+- [ ] Introduce =spec/support/env_helper.rb= with a =build_env(path,
+      method:)= helper that uses =Rack::MockRequest= from =rack-test=
+      (=rack-test= 2.x re-exports =Rack::MockRequest= for Rack 3 compat)
+      — verify this is available; if not, hand-build the env hash.
+- [ ] Update =spec/app_spec.rb=, =spec/recognizer_spec.rb= (and any
+      other =MockRequest= users) to the helper.
+
+Note: this sub-phase was not needed. Rack 3.2 still ships
+=Rack::MockRequest= (=lib/rack/mock_request.rb=), so the existing
+=env_for= calls remain valid and were kept. Left unchecked as written.
+
+*** 3c. Rack::Builder subclass
+- [X] =Eldr::Builder < Rack::Builder=. Rack 3's =Rack::Builder=
+      changed internals. Our overrides define =use/run/map/to_app=
+      ourselves, but we still inherit =URLMap= usage and
+      =generate_map=. Replace the bare =URLMap.new(mapped)= with
+      =Rack::URLMap.new(mapped)= explicitly.
+- [X] Verify =Rack::Builder.parse_file= still works for loading =.ru=
+      examples (it does in Rack 3). If =Rack::Builder::parse_file= moved,
+      update spec helpers.
+- [X] Confirm =Rack::Builder.new { ... }= block semantics still match
+      our =use(map)/run= overrides (the =examples/multiple_apps.ru=
+      pattern).
+- [X] Bump =rack= to =~> 3.0= and =rack-test= to =~> 2.1= in the gemspec.
+
+Checkpoint: all example specs (=spec/examples/*=) and unit specs green
+under Rack 3.
+
+** Phase 4 — fast_blank & dev-dependency cleanup
+- [X] Bump =fast_blank= to =~> 1.0=; verify =String#blank?= still
+      present and that =recognizer.rb= =''.blank?= path works.
+- [X] Drop =coveralls= dependency entirely; it is unmaintained and
+      Travis-only. Replace with =simplecov= if coverage is wanted (Phase 6).
+- [X] Update =spec/spec_helper.rb= to remove the =COVERALLS_REPO_TOKEN=
+      branch.
+- [X] Finalize dev deps: rspec ~> 3.13, rubocop ~> 1.89, rake ~> 13,
+      rack-test ~> 2.1, tilt ~> 2.9, slim ~> 5.0, simplecov ~> 1.1.
+
+Checkpoint: =bundle install= is clean; =bundle exec rake= green.
+
+** Phase 5 — RuboCop modernization
+- [X] Delete =.rubocop_todo.yml= and regenerate with
+      =bundle exec rubocop --auto-gen-config= against rubocop 1.89.
+- [X] Rewrite =.rubocop.yml=:
+      - =require: rubocop-rspec= (and =rubocop-rake= if desired).
+      - Adopt =Layout/LineLength= (renamed from =Metrics/LineLength=)
+        =Max: 120=.
+      - Keep relaxed =Metrics/AbcSize=, =Metrics/MethodLength=,
+        =Metrics/ClassLength= overrides.
+      - =Style/Documentation=: =Enabled: false= (or actually add docs —
+        see Phase 7).
+      - =Style/SignalException=: keep disabled (we use =raise= now) or
+        remove.
+      - Add =AllCops/TargetRubyVersion: 3.1=.
+- [X] Fix trivial auto-correctable offenses via =rubocop -A= (e.g. =fail=
+      -> =raise=, =alias_method= guidance, =Proc.new= style).
+- [X] Manually fix =Configuration#method_missing= to also define
+      =respond_to_missing?= (correctness + rubocop):
+      #+begin_src ruby
+      def respond_to_missing?(method, include_private = false)
+        method.to_s.end_with?('=') || @table.key?(method.to_s.gsub(/[=?]$/, '').to_sym) || super
+      end
+      #+end_src
+- [X] Clean up =lib/eldr/route.rb#params= dead assignment.
+
+Checkpoint: =bundle exec rubocop= exits 0 (or only carries agreed
+=NToDO= entries in the regenerated todo).
+
+** Phase 6 — Test suite modernization & coverage expansion
+Current suite is ~21 files but thin in places. Expand without rewriting
+intent.
+
+*** 6a. Modernize the harness
+- [X] =spec/spec_helper.rb=: require =simplecov= behind an env var
+      (=ENV['COVERAGE']=), add =SimpleCov.start=, drop the coveralls
+      block, keep =RSpec.configure= with =config.expectations
+      :syntax = :expect= and =config.disable_monkey_patching!=.
+- [X] Replace =expect_any_instance_of= usages with explicit mocks or
+      =allow_any_instance_of= where the intent is "stub =call!=".
+      (In =spec/app_spec.rb= =#call= test, prefer stubbing on the
+      instance returned by =app._new=.)
+- [ ] Standardize all example specs to share a =let(:rt)= helper so the
+      Partially done: .ru loading is centralized in
+      =spec/support/example_app.rb= (=load_example_app=), but each of the 11
+      example specs still builds its own =Rack::Test::Session=.
+      =Rack::Test::Session= construction is one place
+      (=spec/support/example_app.rb=).
+- [X] Remove the duplicate =let(:env_error)= block in
+      =spec/app_spec.rb=.
+
+*** 6b. Close coverage gaps (new specs)
+- [X] =spec/cascade_spec.rb= (new): =Eldr::Cascade#call= returns first
+      non-404 app; iterates apps; =add=/=<</=include?=; body close
+      behavior; lowercase NOTFOUND headers.
+- [X] =spec/configuration_spec.rb=: add tests for =method_missing=
+      setter (e.g. =config.lock = true=), =respond_to?=, =merge!= with a
+      =Configuration= instance and with a =Hash=, default-nil for unknown
+      keys with =?= suffix.
+- [X] =spec/builder_spec.rb=: add =generate_map= path (the =map=/
+      =URLMap= branch) — currently untested and the most fragile part of
+      the Rack 3 migration. Cover nested =map= blocks.
+- [X] =spec/matcher_spec.rb=: add Regexp-path and =capture= option
+      cases (from Phase 2).
+- [X] =spec/route_spec.rb=: add =order= sorting behavior through the
+      recognizer (deferred routes), and a test that =create_handler=
+      with an unknown constant raises =NameError= (document current
+      behavior or decide to =safe_const_get=).
+- [X] =spec/app_spec.rb=: add the kwargs regression spec (Phase 1 guard),
+      a before/after filter ordering spec against a live request (the
+      =order = []= spec in =example_app_spec.rb= can be mirrored as a
+      unit test), and an error-without-=#call= path that re-raises.
+- [X] =spec/recognizer_spec.rb=: add =verb= downcasing and the
+      blank-PATH_INFO -> '/' normalization branch.
+- [X] Add an =examples/cascade.ru= + spec to satisfy the open TODO in
+      =TODOS= and cover =Eldr::Cascade= end-to-end.
+
+*** 6c. Coverage gate
+- [X] Wire =SimpleCov= with a minimum =coverage 90%= fail-on-fall-off
+      guard in =spec/spec_helper.rb= (or via =simplecov-lts=); aim for
+      >=95% line coverage of =lib/=.
+      Done (and ratcheted): =minimum_coverage line: 100, branch: 100=;
+      see FullCoverage.org.
+
+Checkpoint: =bundle exec rspec= green, =COVERAGE=1 bundle exec rspec=
+reports >=95%, and the new specs exercise Cascade, Builder URLMap,
+Configuration setters, and matcher regex/capture paths.
+
+** Phase 7 — Code & API polish (non-breaking)
+- [X] Replace =fail= with =raise= everywhere.
+- [X] =lib/eldr.rb=: currently only =require_relative 'eldr/app'=. Add
+      eager requires for =cascade=, =version= so =require 'eldr'= gives
+      the whole public surface (Cascade is currently unrequireable from
+      the gem entrypoint).
+- [X] =lib/eldr/route.rb#params=: remove dead =params ||= {}=.
+- [X] =lib/eldr/app.rb=: the =alias_method :_new, :new= dance exists so
+      =App.new= returns a =Builder= while internal code can still get a
+      real instance. Document this clearly with a comment; keep the
+      behavior (it is load-bearing for =run ExampleApp= in examples).
+- [ ] Optional: add YARD/RDoc docstrings to public methods (closes the
+      =Rdocs= TODO). At minimum, document =Eldr::App=, =Route=,
+      =Builder=, =Cascade=, =Configuration=.
+      Partially done: all five public classes carry descriptive comments,
+      but there is no method-level YARD/RDoc and the =Rdocs= item in =TODOS=
+      is still open.
+- [X] Bump =Eldr::VERSION= to =0.1.0= (semver: significant dependency /
+      Ruby target shift) and add a =CHANGELOG.md=.
+
+Checkpoint: =bundle exec rake= green; rubocop green; manual =require
+'eldr'; Eldr::Cascade= works.
+
+** Phase 8 — CI & docs
+- [X] Replace =.travis.yml= with =.github/workflows/ci.yml=:
+      - matrix Ruby: 3.1, 3.2, 3.3, 3.4.
+      - steps: checkout, =bundle install=, =bundle exec rubocop=,
+        =bundle exec rspec=.
+      - upload coverage artifact.
+- [X] Update README badges (Travis, Code Climate, Coveralls, Gratipay,
+      Gemnasium are all dead services); replace with GitHub Actions
+      status badge + maybe Codecov. Keep the =readme_spec.rb= contract
+      in sync (update =spec/readme_definitions.yml= only if README
+      structure intentionally changes; otherwise preserve structure so
+      the readme specs stay green).
+- [X] Update README =Installation and Usage= to reflect Ruby 3 + Rack 3.
+- [X] Update =examples/README.md= run command (=bundle exec rackup=
+      remains valid; =rackup= ships via =rackup= gem in Rack 3 — add it
+      as a dev dep or document =bundle exec rackup=).
+      No change needed: =rackup ~> 2.2= is a dev dependency and the command
+      already documents =bundle exec rackup=.
+- [X] Add =CONTRIBUTING.md= if =README= links to one (readme_spec checks
+      =has_contributing=).
+      No file needed: README has its own Contributing section, so
+      =readme_spec.rb= is satisfied.
+
+Checkpoint: CI is green on a push; README spec green.
+
+* Detailed File-Level Change List
+
+| File                       | Phases | Summary of edits                                          |
+|----------------------------+-------+----------------------------------------------------------|
+| =Gemfile=                    | 0,1,4 | drop =ruby '2.1.5'=; keep =source= + =gemspec=               |
+| =Gemfile.lock=               | 0     | regenerate                                               |
+| =eldr.gemspec=               | 0,2,3,4 | runtime: rack ~> 3.0, mustermann ~> 3.0, fast_blank ~> 1.0; dev: rspec ~> 3.13, rack-test ~> 2.1, rubocop ~> 1.89, rake ~> 13, tilt ~> 2.9, slim ~> 5.0, simplecov ~> 1.1; ruby >= 3.1; drop rubyforge_project |
+| =lib/eldr.rb=                | 7     | eager-require cascade + version                          |
+| =lib/eldr/app.rb=            | 1,5,7 | =Route.new(**h)=, =add(**h)=; =fail=->=raise=; doc the =_new= alias |
+| =lib/eldr/builder.rb=        | 3,5,7 | =Rack::URLMap= explicit; =fail=->=raise=; verify Rack::Builder overrides |
+| =lib/eldr/cascade.rb=        | 3,5   | lowercase =content-type= header; add docs                |
+| =lib/eldr/configuration.rb=  | 5     | add =respond_to_missing?=; docs                          |
+| =lib/eldr/matcher.rb=        | 2,5   | verify mustermann 3/4 =capture=; docs                     |
+| =lib/eldr/recognizer.rb=    | 4,5   | confirm fast_blank 1.x; docs                             |
+| =lib/eldr/route.rb=          | 1,5,7 | remove dead =params ||= {}=; kwargs-safe; docs          |
+| =lib/eldr/version.rb=        | 7     | bump to 0.1.0                                            |
+| =spec/spec_helper.rb=        | 6     | simplecov, drop coveralls, disable_monkey_patching       |
+| =spec/support/*=             | 6     | new helpers (env, example_app)                           |
+| =spec/app_spec.rb=           | 1,3,6 | env helper; kwargs guard; dedupe =env_error=; replace =expect_any_instance_of= |
+| =spec/recognizer_spec.rb=    | 3,6   | env helper; verb/blank branches                          |
+| =spec/builder_spec.rb=       | 6     | URLMap/generate_map coverage                             |
+| =spec/cascade_spec.rb=       | 6     | NEW                                                       |
+| =spec/configuration_spec.rb= | 6     | setters, =respond_to?=, merge                             |
+| =spec/matcher_spec.rb=       | 2,6   | regex + capture cases                                    |
+| =spec/route_spec.rb=         | 6     | order, unknown-const behavior                            |
+| =spec/examples/*=            | 3     | rely on shared helper; otherwise unchanged              |
+| =examples/app.rb= (/state)   | 3     | =[@state]= -> =[@state.to_s]=                             |
+| =examples/cascade.ru=        | 6     | NEW + spec (closes TODOS item)                           |
+| =.rubocop.yml=               | 5     | rewrite for rubocop 1.89                                |
+| =.rubocop_todo.yml=           | 5     | regenerate                                              |
+| =.travis.yml=                | 8     | DELETE                                                   |
+| =.github/workflows/ci.yml=    | 8     | NEW                                                       |
+| =Rakefile=                    | 5     | add =rubocop -A= task?; keep =spec= + =rubocop=           |
+| =README.md=                  | 8     | badges, install, run instructions                        |
+| =CHANGELOG.md=               | 7     | NEW                                                       |
+
+* Test Strategy
+
+** Layers
+1. *Unit specs* (=spec/<class>_spec.rb=) — pure Ruby, no network. These
+   are the regression net for the Ruby-3 and Rack-3 migrations. They must
+   never depend on a real HTTP server.
+2. *Example specs* (=spec/examples/*=) — load each =.ru= via
+   =Rack::Builder.parse_file= and drive it with =Rack::Test::Session=.
+   These prove the end-to-end Rack contract under Rack 3.
+3. *README contract* (=spec/readme_spec.rb= + =readme_definitions.yml=)
+   — keep green; only touch =readme_definitions.yml= if README
+   structure intentionally changes.
+
+** Order of proof
+- After Phase 1: unit specs green (Ruby 3 kwargs fixed).
+- After Phase 3: example specs green (Rack 3 contract).
+- After Phase 6: new specs green; coverage >= 95%.
+- After Phase 8: CI green on matrix 3.1–3.4.
+
+** Regression guards to add (the bugs we most fear regressing)
+- =spec/app_spec.rb= :: kwargs DSL registration (Phase 1).
+- =spec/builder_spec.rb= :: =map= + =URLMap= nested mounting (Phase 3/6).
+- =spec/cascade_spec.rb= :: 404-then-200 ordering, lowercase headers (Phase 6).
+- =spec/app_spec.rb= :: =throw :pass= deferral across two routes (already
+  exists; keep).
+
+* Risk Register
+
+| # | Risk                                                | Likelihood | Impact | Mitigation                                              |
+|---+-----------------------------------------------------+------------+--------+---------------------------------------------------------|
+| 1 | mustermann 4 changes =params= return shape          | Medium     | High   | Phase 2 isolated; add capture/regex specs               |
+| 2 | =Eldr::Builder < Rack::Builder= breaks under Rack 3  | Medium     | High   | Phase 3c isolated; cover =generate_map= with specs      |
+| 3 | =App.new= returning a =Builder= confuses users      | Low        | Low    | Document in Phase 7; keep behavior for =run App= examples |
+| 4 | =Rack::MockRequest= gone; rack-test 2.x differs      | High       | Med    | Phase 3b env helper; verify rack-test 2 API             |
+| 5 | Ruby 3.0 kwargs breakage elsewhere we missed        | Med        | High   | Phase 1 exhaustive call-site audit; grep for =.new(.*hash= |
+| 6 | slim 5 / tilt 2 template API drift in rendering example | Low     | Low    | Keep rendering_templates example spec as the canary      |
+| 7 | rubocop 1.89 disagrees with old cop names            | High       | Low    | Regenerate todo from scratch (Phase 5)                   |
+| 8 | Dead services in README break =readme_spec.rb=        | High       | Low    | Update badges; keep =readme_definitions.yml= contract    |
+| 9 | =Object.const_get= in =Route#create_handler= loads arbitrary constants | Low | Med | Decide policy in Phase 7; document or restrict to app namespace |
+
+* Acceptance Criteria (Definition of Done)
+
+- [ ] =bundle install= succeeds on Ruby 3.1, 3.2, 3.3, 3.4.
+      Verified on 3.4.9 locally; the 3.1–3.3 matrix is pending CI (see 8.6).
+- [ ] =bundle exec rspec= is green on all four Rubies.
+      Verified on 3.4.9 (127 examples, 0 failures); matrix pending CI.
+- [X] =bundle exec rubocop= exits 0 (no unaddressed offenses).
+- [X] =COVERAGE=1 bundle exec rspec= reports >= 95% line coverage of =lib/=.
+      Reports 100.00% line (251/251) and 100.00% branch (57/57).
+- [X] New specs exist for Cascade, Builder URLMap, Configuration setters,
+      matcher regex/capture, recognizer verb/blank branches.
+- [X] All =examples/*.ru= are exercised by specs and pass under Rack 3.
+- [ ] =.github/workflows/ci.yml= runs the matrix and is green.
+      Workflow exists; no GitHub run has happened yet (uncommitted change).
+- [X] =.travis.yml= removed; =Gemfile= no longer pins a Ruby patch.
+- [X] =CHANGELOG.md= documents the 0.0.4 -> 0.1.0 breaking changes.
+- [X] README badges + install instructions updated; =readme_spec.rb= green.
+- [X] =require 'eldr'; Eldr::Cascade= works without extra requires.
+
+* Task Breakdown (checkbox tracker)
+
+Copy these into issues/PRs as needed. They are ordered; later tasks depend
+on earlier ones.
+
+** Phase 0
+- [X] 0.1 Strip Ruby pin from Gemfile
+- [X] 0.2 Delete stale Gemfile.lock
+- [X] 0.3 Bridge gemspec deps (rack ~> 2.2, mustermann ~> 1.1) temporarily
+- [X] 0.4 Bridge dev deps (rspec/rubocop/rake/rack-test/tilt/slim/simplecov)
+- [X] 0.5 gemspec: ruby >= 3.1, drop rubyforge_project / required_rubygems_version / bundler pin
+- [X] 0.6 bundle install + record baseline rspec output
+
+** Phase 1
+- [X] 1.1 Fix =Route.new(route_attributes)= -> splat in app.rb
+- [X] 1.2 Fix verb-DSL =add({...})= -> splat in app.rb
+- [X] 1.3 Audit all =.new(= call sites for Hash-as-kwargs
+- [X] 1.4 Add kwargs regression spec in app_spec.rb
+- [X] 1.5 Green unit suite on Ruby 3
+
+** Phase 2
+- [ ] 2.1 Bump mustermann to ~> 3.0  (deferred; final pin =~> 1.1=)
+- [X] 2.2 Verify =capture= option in matcher.rb
+- [X] 2.3 Remove dead =params ||= {}= in route.rb
+- [X] 2.4 Add matcher regex + capture specs
+
+** Phase 3
+- [X] 3.1 Lowercase =content-type= in Cascade::NOTFOUND
+- [X] 3.2 Fix =[200, {}, [@state]]= body in examples/app.rb /state
+- [ ] 3.3 Replace =Rack::MockRequest.env_for= with rack-test helper in specs  (unnecessary; still valid in Rack 3.2)
+- [X] 3.4 Make =Rack::URLMap= explicit in builder.rb
+- [X] 3.5 Bump rack ~> 3.0, rack-test ~> 2.1
+- [X] 3.6 Verify all example .ru responses under Rack 3
+- [X] 3.7 Green example + unit suites on Rack 3
+
+** Phase 4
+- [X] 4.1 Bump fast_blank ~> 1.0
+- [X] 4.2 Drop coveralls from gemspec + spec_helper
+- [X] 4.3 Finalize dev dep versions
+
+** Phase 5
+- [X] 5.1 Regenerate .rubocop_todo.yml with rubocop 1.89
+- [X] 5.2 Rewrite .rubocop.yml (TargetRubyVersion 3.1, renamed cops)
+- [X] 5.3 =rubocop -A= trivial fixes (fail->raise etc.)
+- [X] 5.4 Add =respond_to_missing?= to Configuration
+- [X] 5.5 rubocop exits 0
+
+** Phase 6
+- [X] 6.1 Modernize spec_helper (simplecov, disable_monkey_patching)
+- [ ] 6.2 Add spec/support helpers (env, example_app)  (example_app added; env helper not needed)
+- [X] 6.3 Replace =expect_any_instance_of= in app_spec.rb
+- [X] 6.4 Dedupe =env_error= in app_spec.rb
+- [X] 6.5 New =spec/cascade_spec.rb=
+- [X] 6.6 Expand =spec/configuration_spec.rb=
+- [X] 6.7 Expand =spec/builder_spec.rb= (URLMap/generate_map)
+- [X] 6.8 Expand =spec/matcher_spec.rb= (regex, capture)
+- [X] 6.9 Expand =spec/route_spec.rb= (order, unknown-const)
+- [X] 6.10 Expand =spec/recognizer_spec.rb= (verb, blank)
+- [X] 6.11 New =examples/cascade.ru= + spec
+- [X] 6.12 Add coverage gate (>= 95%)
+
+** Phase 7
+- [X] 7.1 =fail= -> =raise= pass
+- [X] 7.2 Eager-require cascade + version in lib/eldr.rb
+- [X] 7.3 Document =_new= alias in app.rb
+- [ ] 7.4 Add YARD/RDoc to public classes (closes TODOS Rdocs item)  (class comments added; method-level docs + TODOS item remain)
+- [X] 7.5 Bump VERSION to 0.1.0
+- [X] 7.6 Write CHANGELOG.md
+
+** Phase 8
+- [X] 8.1 Add =.github/workflows/ci.yml= (matrix 3.1–3.4)
+- [X] 8.2 Remove =.travis.yml=
+- [X] 8.3 Update README badges + install/run sections
+- [X] 8.4 Add rackup dev dep or document =bundle exec rackup=
+- [X] 8.5 Update examples/README.md if needed  (no change needed)
+- [ ] 8.6 Final green CI run  (workflow not yet pushed; local runs green)
+
+* Notes & Decisions to Confirm
+
+- *mustermann 3 vs 4*: pin ~> 3.0 first (battle-tested); bump to 4 only if
+  Phase 2 specs pass without code changes. Avoid 4.0 churn unless free.
+  *Resolved:* stayed on =~> 1.1= (Ruby 3 compatible); the =capture=
+  contract is covered by specs, so the 0.4 -> 3.x jump was skipped.
+- *Rack 2 bridge vs straight to 3*: the bridge in Phase 0 is intentional
+  so Phase 1 (kwargs) can land with a working =Rack::MockRequest=. If
+  that proves more painful than helpful, skip the bridge and do Rack 3 +
+  env-helper first. Re-evaluate at checkpoint 0.6.
+  *Resolved:* went straight to Rack 3. =Rack::MockRequest= still ships in
+  Rack 3.2, so no env helper was required.
+- *API stability*: keep =App.new= returning a =Builder=. It is required
+  for the =run ExampleApp= idiom in examples. Document, do not change.
+- *Route#create_handler security*: =Object.const_get(controller)= will
+  instantiate any constant. For a "minimal framework without magic" this
+  is arguably fine and matches Rails-style =Controller#action= strings,
+  but consider documenting the trust boundary (handler strings are app
+  author code, not user input).
+- *Eldr::Cascade*: currently not requireable from =require 'eldr'= and
+  has no example (open TODO). Phase 7 + 6.11 close both.
+  *Resolved:* =lib/eldr.rb= eagerly requires cascade + version and
+  =examples/cascade.ru= ships with an end-to-end spec.

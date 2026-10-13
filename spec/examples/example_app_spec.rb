@@ -1,15 +1,15 @@
-describe "ExampleApp" do
-  it 'does not pollute the base class with routes' do
-    expect(Eldr::App.routes[:get].length).to eq(0)
-  end
+# frozen_string_literal: true
 
-  let(:app) do
-    path = File.expand_path("../../examples/app.ru", File.dirname(__FILE__))
-    Rack::Builder.parse_file(path).first
-  end
-
+RSpec.describe 'ExampleApp' do
   let(:rt) do
     Rack::Test::Session.new(app)
+  end
+  let(:app) do
+    load_example_app('../examples/app.ru')
+  end
+
+  it 'does not pollute the base class with routes' do
+    expect(Eldr::App.routes[:get].length).to eq(0)
   end
 
   describe 'GET /posts' do
@@ -58,9 +58,9 @@ describe "ExampleApp" do
       cats.after { order << :after }
       cats.before { order << :before }
 
-      cats.get'/' do
+      cats.get '/' do
         order << :action
-        Rack::Response.new("Cats!", 200)
+        Rack::Response.new('Cats!', 200)
       end
 
       app_a = cats.new
@@ -71,7 +71,7 @@ describe "ExampleApp" do
 
       rt2 = Rack::Test::Session.new(app_b)
       rt2.get '/'
-      expect(order).to eq([:before, :action, :after])
+      expect(order).to eq(%i[before action after])
     end
   end
 

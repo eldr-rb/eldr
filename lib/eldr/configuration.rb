@@ -1,10 +1,9 @@
+# frozen_string_literal: true
+
 module Eldr
-  ###
-  # This a OpenStruct like class.
-  # It wraps a hash and when you hit a method that doesn't exist it tries to pull it from the hash
-  # Probably can break in 100 ways an is dumb, but it works.
-  # And it performs astromnomically better than stuff like Hashie::Mash
-  ###
+  # An OpenStruct-like configuration object. It wraps a hash and answers
+  # unknown methods by pulling values from that hash. Designed to be far
+  # lighter than Hashie::Mash.
   class Configuration
     attr_accessor :table
 
@@ -27,11 +26,16 @@ module Eldr
     end
 
     def method_missing(method, *args)
-      if !args.empty? # we assume we are setting something
-        set(method.to_s.gsub(/\=$/, '').to_sym, args.pop)
-      else
+      if args.empty?
         @table[method.to_s.gsub(/\?$/, '').to_sym]
+      else # we assume we are setting something
+        set(method.to_s.gsub(/=$/, '').to_sym, args.pop)
       end
+    end
+
+    def respond_to_missing?(method, _include_private = false)
+      name = method.to_s
+      name.end_with?('=') || @table.key?(name.gsub(/[=?]$/, '').to_sym) || super
     end
   end
 end

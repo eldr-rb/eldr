@@ -1,9 +1,11 @@
-# A version of Rack::Cascade that works with Rack::Response.
-# Seriously? WTF Rack::Cascade
-# TODO: Get fixes into rack and remove this entirely
+# frozen_string_literal: true
+
+# A Rack::Cascade replacement that chains apps together and returns the
+# first response whose status is not "caught" (default 404 / 405).
 module Eldr
+  # See Eldr::Cascade (top-level docs).
   class Cascade
-    NOTFOUND = [404, { 'CONTENT-TYPE' => 'text/plain' }, []]
+    NOTFOUND = [404, { 'content-type' => 'text/plain' }, []].freeze
 
     attr_reader :apps
 
@@ -42,6 +44,6 @@ module Eldr
       @has_app.include? app
     end
 
-    alias_method :<<, :add
+    alias << add
   end
 end

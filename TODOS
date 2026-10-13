@@ -2,3 +2,10 @@
 - [ ] performance improvements
 - [ ] wiki pages
 - [ ] add Eldr::Cascade example to examples/
+- [ ] Eldr::Matcher: raise ArgumentError for unsupported path types
+      (currently yields a nil handler; see spec/matcher_spec.rb 'unsupported
+      path types')
+- [ ] Review Eldr::Builder use-after-map semantics: middleware applied
+      after `map` wraps only the default app; mapped blocks bypass it
+      (upstream Rack::Builder scopes `map` separately; see
+      spec/builder_spec.rb '#use after #map')

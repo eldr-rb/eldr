@@ -1,7 +1,8 @@
-describe 'ErrorsExample' do
+# frozen_string_literal: true
+
+RSpec.describe 'ErrorsExample' do
   let(:app) do
-    path = File.expand_path("../../examples/errors.ru", File.dirname(__FILE__))
-    Rack::Builder.parse_file(path).first
+    load_example_app('../examples/errors.ru')
   end
 
   let(:rt) do

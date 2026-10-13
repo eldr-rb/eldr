@@ -48,11 +48,11 @@ class ExampleApp < Eldr::App
 
   get '/state' do
     @state = 1 + @state.to_i
-    [200, {}, [@state]]
+    [200, {}, [@state.to_s]]
   end
 
   get '/state-2' do
-    [200, {}, [@state ||= 0]]
+    [200, {}, [(@state ||= 0).to_s]]
   end
 
   get '/before', name: :before do

@@ -1,4 +1,4 @@
-# Eldr [![Build Status](https://travis-ci.org/eldr-rb/eldr.svg)](https://travis-ci.org/eldr-rb/eldr) [![Code Climate](https://codeclimate.com/github/eldr-rb/eldr/badges/gpa.svg)](https://codeclimate.com/github/eldr-rb/eldr) [![Coverage Status](https://coveralls.io/repos/eldr-rb/eldr/badge.svg?branch=master)](https://coveralls.io/r/eldr-rb/eldr?branch=master) [![Dependency Status](https://gemnasium.com/eldr-rb/eldr.svg)](https://gemnasium.com/eldr-rb/eldr) [![Inline docs](https://inch-ci.org/github/eldr-rb/eldr.svg?branch=master)](http://inch-ci.org/github/eldr-rb/eldr) [![Gratipay](https://img.shields.io/gratipay/k2052.svg)](https://www.gratipay.com/k2052/)
+# Eldr [![CI](https://github.com/eldr-rb/eldr/actions/workflows/ci.yml/badge.svg)](https://github.com/eldr-rb/eldr/actions/workflows/ci.yml) [![Gem](https://img.shields.io/gem/v/eldr.svg)](https://rubygems.org/gems/eldr)
 
 Eldr is a minimal ruby framework that doesn't hide the rack. It aims to be lightweight, simple, modular and above all, clear. Eldr is a ruby framework without all the magic.
 
@@ -89,7 +89,8 @@ end
 
 ## Installation and Usage
 
-To install Eldr add the following to your gemfile:
+Eldr targets Ruby >= 3.1 and Rack >= 3.0. To install Eldr add the following
+to your Gemfile:
 
 ```ruby
 gem 'eldr'
@@ -106,8 +107,8 @@ $ bundle
 To use it you need to create a rackup file. Add the following to a config.ru file:
 
 ```ruby
-class HelloWorld < Edlr::App
-  get '/', proc { [200, {'Content-Type' => 'txt'}, ['Hello World!']]}
+class HelloWorld < Eldr::App
+  get '/', proc { [200, {'content-type' => 'txt'}, ['Hello World!']]}
 end
 
 run HelloWorld
@@ -116,8 +117,8 @@ run HelloWorld
 Route handlers are anything that respond to call and return a valid Rack response. All the http verbs you expect are available:
 
 ```ruby
-get '/',  proc { [200, {'Content-Type' => 'txt'}, ['Hello World!']]}
-post '/', proc { [201, {'Content-Type' => 'txt'}, ['Hello World!']]}
+get '/',  proc { [200, {'content-type' => 'txt'}, ['Hello World!']]}
+post '/', proc { [201, {'content-type' => 'txt'}, ['Hello World!']]}
 ```
 
 etc...
@@ -165,10 +166,11 @@ require_relative 'app'
 run App
 ```
 
-Now boot it using rackup:
+Now boot it using rackup (in Rack 3 `rackup` ships as a separate gem; make
+sure it is in your Gemfile or use `bundle exec`):
 
 ```sh
-$ rackup
+$ bundle exec rackup
 ```
 
 When you visit http:///localhost:9292 in your browser you should see "Hello World!"
@@ -394,7 +396,7 @@ end
 To _validate_ a request we need to instantiate CatParams:
 
 ```ruby
-class InvalidParams < Edlr::ResponseError
+class InvalidParams < Eldr::ResponseError
   def status
     400
   end
@@ -432,7 +434,7 @@ end
 And you can use it like a standard ruby error class:
 
 ```ruby
-app = Edlr::App.new do
+app = Eldr::App.new do
   get '/' do
     raise ErrorResponse, "Bad Data"
   end
@@ -446,7 +448,7 @@ run app
 Eldr will NOT catch all errors. In a production setting you will need to use middleware to make certain nothing ever explodes at your user. Something like [rack-robustness](https://github.com/blambeau/rack-robustness) will work fine:
 
 ```ruby
-class App < Edlr::App
+class App < Eldr::App
   use Rack::Robustness do |g|
     g.on(ArgumentError){|ex| 400 }
     g.on(SecurityError){|ex| 403 }
@@ -560,7 +562,7 @@ You can extend Eldr in two ways;
 
 Ruby patterns are something you are already intimately familiar with. Include, extend, ducks, blocks, procs etc are something you know like the front of your MacBook (btw you should _really_ clean that smudge). Eldr is a DSL you already know how to speak.
 
-I have designed Edlr to work well with common ruby patterns; you can include it, extend it, pass it blocks etc, and it wont blow up. If it does blow up its a bug.
+I have designed Eldr to work well with common ruby patterns; you can include it, extend it, pass it blocks etc, and it wont blow up. If it does blow up its a bug.
 
 You can add methods to your app (i.e helpers) by including them:
 
@@ -723,7 +725,7 @@ end
 
 ### Route Handlers: The Power of Action Objects
 
-In Edlr (just like in Rack) route handlers are things that respond to call. This means we can use everthing from procs, to blocks, to instances of a class.
+In Eldr (just like in Rack) route handlers are things that respond to call. This means we can use everthing from procs, to blocks, to instances of a class.
 
 If we wanted to we could do the following:
 

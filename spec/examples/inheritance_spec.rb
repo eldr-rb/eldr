@@ -1,7 +1,8 @@
-describe 'InheritedApp' do
+# frozen_string_literal: true
+
+RSpec.describe 'InheritedApp' do
   let(:app) do
-    path = File.expand_path("../../examples/inheritance.ru", File.dirname(__FILE__))
-    Rack::Builder.parse_file(path).first
+    load_example_app('../examples/inheritance.ru')
   end
 
   let(:rt) do
@@ -17,7 +18,7 @@ describe 'InheritedApp' do
 
   describe '.configuration#bob' do
     it 'returns "what about him?"' do
-      expect(app.configuration.bob).to eq('what about him?')
+      expect(load_raw_example_app('../examples/inheritance.ru').configuration.bob).to eq('what about him?')
     end
   end
 end

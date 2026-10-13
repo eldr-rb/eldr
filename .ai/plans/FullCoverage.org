@@ -1,0 +1,424 @@
+#+TITLE: Eldr 100% Coverage Plan
+#+AUTHOR: K-2052 (agent-assisted)
+#+DATE: [2026-10-11]
+
+* Executive Summary
+
+Eldr's lib is 478 LOC across 9 files with a 119-example RSpec suite. Under
+the project's existing metric (SimpleCov 1.1.1 line coverage, opt-in via
+=COVERAGE=1=), the suite stands at *98.40% (247 / 251 lines)* with the gate
+set at =SimpleCov.minimum_coverage 90=. Every missed line lives in one
+file: =lib/eldr/builder.rb=.
+
+This plan closes the remaining gaps and ratchets the gate:
+
+1. *4 missed lines* — both in =Eldr::Builder=: the =use=-after-=map= branch
+   (lines 28–30) and =warmup= (line 41). Covered by 5 new examples in
+   =spec/builder_spec.rb=.
+2. *6 missed branches* (branch coverage is not currently enabled; measured
+   at 89.47% = 51 / 57) — across =app.rb=, =builder.rb=, and =matcher.rb=.
+   Each maps to genuinely untested behavior: named =after= filters are
+   never attached to routes, non-callable errors are never re-raised,
+   =warmup= never actually runs, =generate_map= is never called with a
+   default app, and =Matcher= is never built with a non-String/Regexp
+   path. Covered by 3 more examples.
+3. *Gate ratchet* — enable branch coverage and raise the minimum to
+   =line: 100, branch: 100= in =spec/spec_helper.rb=. CI already runs
+   =COVERAGE=1 bundle exec rspec=, so the gate enforces itself.
+
+Total: *8 new rspec examples, zero production-code changes*. Every test
+sketch in this plan was executed against the current tree on
+[2026-10-11] (Ruby 3.4.9): 127 examples, 0 failures, *line 251 / 251
+(100.00%), branch 57 / 57 (100.00%)*, gate exit 0. The gate's failure
+mode was also verified: below 100% it exits 2 and prints the
+lowest-coverage files.
+
+Estimated effort: *1–2 hours* including one CI round-trip.
+
+* Current-State Inventory
+
+** How coverage runs today
+
+| Mechanism            | Details                                                            |
+|----------------------+--------------------------------------------------------------------|
+| Tooling              | SimpleCov 1.1.1, started in =spec/spec_helper.rb= before lib load  |
+| Opt-in               | =COVERAGE=1= env var (local: =make coverage=)                     |
+| Gate                 | =SimpleCov.minimum_coverage 90= — trips process exit code          |
+| Reports              | =make coverage= runs suite + =simplecov report= + =simplecov uncovered= |
+| CI                   | =.github/workflows/ci.yml= runs =COVERAGE=1 bundle exec rspec= on Ruby 3.1–3.4 |
+| Artifacts            | =coverage/= is gitignored (via global gitignore)                  |
+| Metric               | Line coverage only; branch coverage not enabled                   |
+
+** Coverage snapshot (2026-10-11, 119 examples, 0 failures)
+
+| File                    | Lines     | Line % | Branches  | Branch % |
+|-------------------------+-----------+--------+-----------+----------|
+| lib/eldr.rb             |  3 /   3  | 100.0% |  0 /  0   |      —   |
+| lib/eldr/app.rb         | 86 /  86  | 100.0% | 18 / 20   |  90.00%  |
+| lib/eldr/builder.rb      | 36 /  40  |  90.0% | 11 / 14   |  78.57%  |
+| lib/eldr/cascade.rb     | 25 /  25  | 100.0% |  4 /  4   | 100.00%  |
+| lib/eldr/configuration.rb | 20 / 20 | 100.0% |  4 /  4   | 100.00%  |
+| lib/eldr/matcher.rb     | 12 /  12  | 100.0% |  2 /  3   |  66.67%  |
+| lib/eldr/recognizer.rb  | 21 /  21  | 100.0% |  4 /  4   | 100.00%  |
+| lib/eldr/route.rb       | 44 /  44  | 100.0% |  8 /  8   | 100.00%  |
+| *TOTAL*                 | 247 / 251 | *98.40%* | 51 / 57 | *89.47%* |
+
+222 further lines are SimpleCov "omitted" (comments, =def=/=end=) and are
+not part of the denominator.
+
+** Exact gap inventory
+
+*** Line gaps (4 lines, all in lib/eldr/builder.rb)
+
+1. =builder.rb:28–30= — the =if @map= branch inside =Builder#use=:
+   #+begin_src ruby
+   if @map
+     mapping = @map
+     @map = nil
+     @middleware << proc { |app| generate_map app, mapping }
+   end
+   #+end_src
+   No spec ever calls =use= while a map is pending.
+2. =builder.rb:41= — =Builder#warmup= is never called at all:
+   #+begin_src ruby
+   def warmup(prc = nil, &block)
+     @warmup = prc || block
+   end
+   #+end_src
+
+*** Branch gaps (6 branches; branch coverage not currently enabled)
+
+| # | Location        | Branch | Untested behavior                                            |
+|---+-----------------+--------+--------------------------------------------------------------|
+| 1 | app.rb:107      | then   | Named =after= filters never attached to a route in =.add=. Named =before= filters ARE covered (end-to-end via =examples/app.ru=: =before :before= + route =name: :before=); no equivalent =after= usage exists anywhere. |
+| 2 | app.rb:138      | then   | =raise e unless e.respond_to? :call= — an error raised in a handler that is not a Rack-style response object is never re-raised (all spec errors respond to =#call=). |
+| 3 | builder.rb:27→28 | then   | Same code as line gap 1: =use= never called with a pending map. |
+| 4 | builder.rb:54   | then   | =@warmup&.call(app)= — a registered warmup never actually invoked (today =@warmup= is always =nil=). |
+| 5 | builder.rb:65   | then   | =generate_map= never called with a truthy =default_app= (=mapped['/'] = default_app= arm); today it is only reached via =to_app= with =@run = nil=. |
+| 6 | matcher.rb:20   | else   | Implicit else of =case @path=: a path that is neither String nor Regexp is never constructed (=handler= returns =nil=). |
+
+* Goals & Non-Goals
+
+** Goals
+
+- 100% line coverage on =lib/= (the project's existing metric): 251 / 251.
+- 100% branch coverage as cheap hardening: 57 / 57 — all six gaps are real
+  untested behavior, not metric noise.
+- Gate ratchet: =minimum_coverage 90= → =line: 100, branch: 100=, enforced
+  automatically by the existing CI coverage step.
+- Zero production-code changes: this is a tests-and-config-only plan.
+
+** Non-Goals
+
+- No behavior changes or refactors. Two candidate refactors surfaced
+  during analysis and are flagged as separate decisions (see Risks):
+  matcher raising =ArgumentError= for unsupported path types, and the
+  =use=-after-=map= middleware semantics.
+- No mutation testing or metric churn beyond line + branch.
+- Example apps (=examples/*.ru=) remain filtered out of coverage; the
+  README's =readme_spec.rb= harness is unaffected.
+
+* Phased Plan
+
+Each phase ends with a green suite. Phases 1–3 only add specs (the 90%
+gate keeps passing regardless); the ratchet lands in Phase 4 only after
+everything is at 100%.
+
+** Phase 1 — Close the builder.rb line gaps (spec/builder_spec.rb)
+
+*** Test 1.1: =#use= after =#map=
+
+Covers line gap 1 (=builder.rb:28–30=) plus branch gaps 3 and 5
+(=builder.rb:27= then; =builder.rb:65= then, since the pending map is
+converted into a proc that calls =generate_map= with the built app as
+=default_app=).
+
+Add after the existing =describe '#use'= block:
+
+#+begin_src ruby
+describe '#use after #map' do
+  subject(:app) { builder.to_app }
+
+  let(:middleware) do
+    Class.new do
+      def initialize(app)
+        @app = app
+      end
+
+      def call(env)
+        status, headers, body = @app.call(env)
+        [status, headers.merge('x-mw' => '1'), body]
+      end
+    end
+  end
+  let(:index) { proc { |_env| [200, { 'content-type' => 'text/plain' }, ['index']] } }
+  let(:cats)  { proc { |_env| [200, { 'content-type' => 'text/plain' }, ['cats']] } }
+  let(:builder) do
+    cats_app = cats
+    b = described_class.new
+    b.map '/cats' do
+      run cats_app
+    end
+    b.use middleware
+    b.run index
+    b
+  end
+
+  it 'wraps the default app in the middleware and mounts it at /' do
+    expect(app).to be_an_instance_of(Rack::URLMap)
+    resp = app.call(Rack::MockRequest.env_for('/', method: :get))
+    expect(resp[2]).to eq(['index'])
+    expect(resp[1]['x-mw']).to eq('1')
+  end
+
+  it 'routes mapped paths to their own apps, bypassing the middleware' do
+    resp = app.call(Rack::MockRequest.env_for('/cats', method: :get))
+    expect(resp[2]).to eq(['cats'])
+    expect(resp[1]['x-mw']).to be_nil
+  end
+
+  it 'consumes the pending map' do
+    app
+    expect(builder.instance_variable_get(:@map)).to be_nil
+  end
+end
+#+end_src
+
+Behavior pinned by this test (current semantics, worth knowing):
+- =use= consumes the pending map and prepends a map-generating proc to
+  the middleware stack; =to_app= then builds =Rack::URLMap= with
+  ='/' => middleware-wrapped default app=.
+- Middleware applied after =map= wraps *only* the default (run) app;
+  mapped blocks that call =run= themselves bypass it.
+
+**** Implementation gotcha (verified the hard way)
+
+=Builder#initialize= =instance_eval=s blocks, and mapped blocks are
+later =instance_eval=ed on a *fresh* =Builder= inside =generate_map=
+(=builder.rb:66=). Inside those blocks =self= is the Builder, so
+RSpec =let=/=subject= helpers are NOT visible — reference =cats=
+directly inside the map block and you get =NameError=. Capture the
+value into a local first:
+
+#+begin_src ruby
+cats_app = cats
+b.map '/cats' do
+  run cats_app
+end
+#+end_src
+
+*** Test 1.2: =#warmup=
+
+Covers line gap 2 (=builder.rb:41=) plus branch gap 4 (=builder.rb:54=
+then — the warmup actually runs). Both the block and proc argument
+forms are exercised (=prc || block=).
+
+#+begin_src ruby
+describe '#warmup' do
+  let(:inner) { proc { |_env| [200, {}, ['ok']] } }
+
+  it 'invokes the warmup block with the built app' do
+    seen = nil
+    builder = described_class.new
+    builder.warmup { |app| seen = app }
+    builder.run inner
+    expect(builder.to_app).to eq(seen)
+  end
+
+  it 'accepts a proc argument' do
+    seen = nil
+    builder = described_class.new
+    builder.warmup(proc { |app| seen = app })
+    builder.run inner
+    expect(builder.to_app).to eq(seen)
+  end
+end
+#+end_src
+
+*** Phase 1 checkpoint
+
+: make coverage
+
+Expected: *Line coverage: 251 / 251 (100.00%)* (branch still 51 / 57 —
+fine, the gate is still 90 and line-only at this stage).
+
+** Phase 2 — Close the app.rb branch gaps (spec/app_spec.rb)
+
+*** Test 2.1: named after-filters attach to matching routes (app.rb:107)
+
+Add to =describe '.add'= (asserts both attachment and execution):
+
+#+begin_src ruby
+it 'attaches named after filters to routes with a matching name' do
+  ran = []
+  bob = Class.new(described_class)
+  bob.after(:cats) { ran << :after_cats }
+  bob.get '/cats', name: :cats do
+    [200, {}, ['meow']]
+  end
+  env = Rack::MockRequest.env_for('/cats', method: :get)
+  bob._new.call!(env)
+  expect(ran).to eq([:after_cats])
+end
+#+end_src
+
+The existing =describe '.after'= specs only assert *registration*
+(=after_filters[:cats].length=); no route named =:cats= is ever defined
+alongside them, so the attachment line's then-branch never ran. This
+closes it and guards the symmetry with =before= (which is already
+covered end-to-end via =examples/app.ru=).
+
+*** Test 2.2: re-raise non-callable errors (app.rb:138)
+
+Add as a sibling of the existing =context 'when raising an error'=
+(under =describe '#call!'=):
+
+#+begin_src ruby
+it 're-raises errors that do not respond to #call' do
+  bob = Class.new(described_class)
+  bob.get '/boom' do
+    raise 'boom'
+  end
+  env = Rack::MockRequest.env_for('/boom', method: :get)
+  expect { bob._new.call!(env) }.to raise_error(RuntimeError, 'boom')
+end
+#+end_src
+
+The existing error spec uses a callable =Error= class (→ 500 response);
+this pins the other side of the =unless=: plain errors propagate to the
+server/Rack, as intended.
+
+** Phase 3 — Close the matcher.rb branch gap (spec/matcher_spec.rb)
+
+*** Test 3.1: non-String/Regexp paths (matcher.rb:20, implicit else)
+
+Add to =spec/matcher_spec.rb= (e.g. after the =regex paths= describe):
+
+#+begin_src ruby
+it 'returns a nil handler for paths that are neither String nor Regexp' do
+  expect(described_class.new(:cats).handler).to be_nil
+end
+#+end_src
+
+*Decision point:* this documents rather than validates — =Matcher= with
+an unsupported path type silently yields a nil handler (and a later
+=NoMethodError= on =match=). The coverage-friendly alternative is to
+raise =ArgumentError= in the else arm, but that is a behavior change and
+out of scope for this plan. Default: test as-is; file a TODO for the
+=ArgumentError= refactor (see Risks).
+
+** Phase 4 — Ratchet the gate (spec/spec_helper.rb)
+
+#+begin_src ruby
+if ENV['COVERAGE']
+  require 'simplecov'
+  SimpleCov.start do
+    add_filter '/spec/'
+    add_filter '/examples/'
+    add_group 'lib', 'lib'
+    enable_coverage :branch
+    SimpleCov.minimum_coverage line: 100, branch: 100
+  end
+end
+#+end_src
+
+Verified with SimpleCov 1.1.1 on [2026-10-11]:
+- At 251 / 251 + 57 / 57 the run exits 0.
+- Below the minimum (baseline 247 / 251) it exits 2 and prints
+  "Lowest-coverage files" per metric — a self-explanatory CI failure.
+
+Notes:
+- =minimum_coverage= accepts the =line:=/=branch:= hash on SimpleCov
+  1.x; =enable_coverage :branch= is required for branch tracking. Branch
+  coverage relies on Ruby's built-in branch instrumentation (Ruby ≥ 2.5)
+  — CI's 3.1–3.4 matrix is fine.
+- CI needs *no workflow change*: the =COVERAGE=1 bundle exec rspec= step
+  now fails on any regression. (Optional nicety: swap it for
+  =make coverage= to keep report/uncovered output on failure.)
+- Makefile needs no change; =simplecov uncovered= prints nothing once
+  every file is at 100%.
+- Optional cleanup while touching this block: =add_group= is deprecated
+  (SimpleCov emits a deprecation warning) in favor of
+  =SimpleCov.group= — same arguments.
+
+** Phase 5 — Polish (optional)
+
+- Add a CHANGELOG.md entry (coverage gate raised to 100% line + branch).
+- Optional end-to-end exercise of =warmup= via =examples/builder.ru= +
+  =spec/examples/builder_spec.rb= (not required for the metric; the
+  unit specs are sufficient).
+- README: no changes needed — the new specs do not alter documented
+  user-facing API, so =spec/readme_spec.rb= is unaffected.
+
+* Verification
+
+| Command         | Expected result                                                              |
+|-----------------+------------------------------------------------------------------------------|
+| =make coverage= | "Line coverage: 251 / 251 (100.00%)", "Branch coverage: 57 / 57 (100.00%)", =simplecov uncovered= prints no files, exit 0 |
+| =make test=     | 127 examples, 0 failures                                                     |
+| =make lint=     | RuboCop clean (sketches were checked against the RSpec cops: =ExampleLength= 15 and =MultipleExpectations= 3 conform) |
+| CI              | Green on Ruby 3.1, 3.2, 3.3, 3.4 — the coverage step now enforces the gate     |
+
+* Acceptance Criteria (Definition of Done)
+
+- [X] All 8 new examples merged: 5 in =spec/builder_spec.rb=, 2 in =spec/app_spec.rb=, 1 in =spec/matcher_spec.rb=.
+- [X] =make coverage= reports line 251 / 251 (100.00%) and branch 57 / 57 (100.00%).
+- [X] =spec/spec_helper.rb= gate at =minimum_coverage line: 100, branch: 100= with =enable_coverage :branch=.
+- [X] No production code under =lib/= changed (diff touches only =spec/=, CHANGELOG.md, and TODOS).
+- [ ] CI green across the Ruby matrix with the ratcheted gate (pending push).
+- [X] A TODO/issue exists for the two flagged decisions (matcher =ArgumentError=; use-after-map semantics review) — tracked in the =TODOS= file.
+
+* Task Breakdown (checkbox tracker)
+
+- [X] 1. Baseline: =make coverage= → confirm 98.40% (247 / 251), only =builder.rb= below 100% (confirmed twice during plan research).
+- [X] 2. =spec/builder_spec.rb=: add =describe '#use after #map'= (3 examples; Test 1.1).
+- [X] 3. =spec/builder_spec.rb=: add =describe '#warmup'= (2 examples; Test 1.2).
+- [X] 4. Checkpoint: =make coverage= → line 251 / 251; =make lint= → clean (subsumed by the full verification below).
+- [X] 5. =spec/app_spec.rb= =describe '.add'=: named after-filters example (Test 2.1).
+- [X] 6. =spec/app_spec.rb= =describe '#call!'=: re-raise example (Test 2.2).
+- [X] 7. =spec/matcher_spec.rb=: nil-handler example (Test 3.1).
+- [X] 8. =spec/spec_helper.rb=: =enable_coverage :branch= + =minimum_coverage line: 100, branch: 100= (plus =add_group=→=group= and =add_filter=→=skip= deprecation cleanups, both verified as drop-in replacements in SimpleCov 1.1.1).
+- [X] 9. Full verify: =make coverage= (exit 0, line 251/251, branch 57/57, "uncovered: nothing to report", no deprecation warnings), =make test= (127 examples, 0 failures), =make lint= (30 files, no offenses).
+- [ ] 10. Push, watch CI across Ruby 3.1–3.4.
+- [X] 11. CHANGELOG entry (0.1.0 "Added" section updated); two flagged decisions recorded in =TODOS=.
+
+Steps 2–3 and 5–7 are independent of each other; step 8 must come last.
+
+* Risks & Notes
+
+1. *use-after-map semantics.* The new builder test pins current
+   behavior: middleware applied after =map= wraps only the default app,
+   and mapped blocks bypass it. If that is judged a bug (upstream
+   =Rack::Builder= gives =map= its own scope), the fix belongs in a
+   separate behavior-change PR with its own test updates — this plan
+   deliberately documents as-is.
+2. *Matcher nil handler.* The =matcher.rb:20= else branch is degenerate
+   input. We document (nil handler) rather than change; raising
+   =ArgumentError= is the cleaner long-term behavior and is noted as a
+   follow-up decision.
+3. *Instance-eval gotcha in builder specs.* Any spec that puts =let=
+   references inside =map= blocks will fail with =NameError= (see
+   Phase 1 gotcha). Capture into locals first. This cost one
+   debugging round during plan validation.
+4. *RuboCop RSpec cops.* =ExampleLength= (15) and =MultipleExpectations=
+   (3) forced the use-after-map verification to be split into three
+   examples; the sketches in this plan already conform (verified with
+   =rubocop=). Distributing them into the existing spec files also
+   avoids =RSpec/MultipleDescribes=.
+5. *Gate failure mode is loud but clean.* Below the minimum SimpleCov
+   exits 2 and prints lowest-coverage files per metric — CI logs will
+   point directly at the regressing file.
+6. *Numbers are stable.* Line totals: 251 relevant (222 omitted);
+   branch totals: 57. The suite grows 119 → 127 examples. Runtimes
+   stay well under a second locally.
+
+* Verification of this plan itself
+
+All sketches were executed against the working tree on [2026-10-11]
+(Ruby 3.4.9, SimpleCov 1.1.1, Rack 3.2, full existing suite + new
+examples):
+- =127 examples, 0 failures=
+- =Line coverage: 251 / 251 (100.00%)=
+- =Branch coverage: 57 / 57 (100.00%)=
+- Gate at =line: 100, branch: 100=: exit 0; baseline suite without the
+  new examples: exit 2 (gate trips, as designed).

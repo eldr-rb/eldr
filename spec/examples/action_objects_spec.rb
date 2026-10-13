@@ -1,7 +1,8 @@
-describe "ActionObjectsExample" do
+# frozen_string_literal: true
+
+RSpec.describe 'ActionObjectsExample' do
   let(:app) do
-    path = File.expand_path("../../examples/action_objects.ru", File.dirname(__FILE__))
-    Rack::Builder.parse_file(path).first
+    load_example_app('../examples/action_objects.ru')
   end
 
   let(:rt) do
@@ -14,5 +15,4 @@ describe "ActionObjectsExample" do
       expect(response.body).to eq('Found cat named Bob!')
     end
   end
-
 end

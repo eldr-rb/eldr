@@ -1,6 +1,27 @@
-inherit_from: .rubocop_todo.yml
+AllCops:
+  TargetRubyVersion: 3.1
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - 'db/**/*'
+    - 'config/**/*'
+    - 'script/**/*'
+    - 'Gemfile'
+    - 'eldr.gemspec'
+    - 'vendor/**/*'
+    - 'spec/support/**/*'
+    - 'examples/**/*'
+
+plugins:
+  - rubocop-rspec
+
+Layout/LineLength:
+  Max: 120
 
 Style/AndOr:
+  Enabled: false
+
+Style/SignalException:
   Enabled: false
 
 Metrics/AbcSize:
@@ -12,17 +33,15 @@ Metrics/MethodLength:
 Metrics/ClassLength:
   Max: 130
 
-Metrics/LineLength:
-  Max: 120
-  
-Style/SignalException:
+Metrics/ParameterLists:
+  Max: 6
+
+Style/Documentation:
   Enabled: false
 
-AllCops:
+RSpec/DescribeClass:
   Exclude:
-    - 'db/**/*'
-    - 'config/**/*'
-    - 'script/**/*'
-    - 'spec/**/*'
-    - 'Gemfile'
-    - 'eldr.gemspec'
+    - 'spec/examples/**/*'
+    - 'spec/readme_spec.rb'
+
+inherit_from: .rubocop_todo.yml
