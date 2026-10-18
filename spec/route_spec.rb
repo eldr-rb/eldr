@@ -22,6 +22,11 @@ RSpec.describe Eldr::Route do
       route = described_class.new(name: :cats)
       expect(route.name).to eq(:cats)
     end
+
+    it 'raises ArgumentError for unsupported path types' do
+      expect { described_class.new(path: :cats) }
+        .to raise_error(ArgumentError, /unsupported path type/)
+    end
   end
 
   describe '#create_handler' do

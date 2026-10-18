@@ -1,0 +1,6 @@
+# Generated documentation / build artifacts
+/doc/
+/.yardoc/
+
+# Bundler local path (development)
+/.bundle/

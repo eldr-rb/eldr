@@ -31,6 +31,16 @@ RSpec.describe Eldr::Recognizer do
         expect { recognizer.call(env) }.to raise_error(Eldr::Recognizer::NotFound)
       end
     end
+
+    context 'when PATH_INFO is blank' do
+      let(:env) { { 'PATH_INFO' => '', 'REQUEST_METHOD' => 'GET' } }
+
+      before { app.get '/', resp_proc }
+
+      it 'normalizes it to / and returns the root route' do
+        expect(recognizer.call(env).length).to eq(1)
+      end
+    end
   end
 
   describe '#verb' do
@@ -57,7 +67,7 @@ RSpec.describe Eldr::Recognizer do
     let(:recognizer) { described_class.new(app.routes) }
 
     it 'normalizes a blank PATH_INFO to /' do
-      recognizer.env = Rack::MockRequest.env_for('', { method: :get })
+      recognizer.env = { 'PATH_INFO' => '' }
       expect(recognizer.pattern).to eq('/')
     end
 

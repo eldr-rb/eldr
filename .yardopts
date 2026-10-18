@@ -1,0 +1,4 @@
+--readme README.md
+--protected
+--no-private
+--output-dir doc

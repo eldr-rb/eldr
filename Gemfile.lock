@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    eldr (0.1.0)
+    eldr (0.2.0)
       fast_blank (~> 1.0)
       mustermann (~> 1.1)
       rack (~> 3.0)
@@ -10,6 +10,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     ast (2.4.3)
+    benchmark-ips (2.15.1)
     diff-lcs (1.6.2)
     fast_blank (1.0.1)
     json (2.21.2)
@@ -74,12 +75,14 @@ GEM
       unicode-emoji (~> 4.1)
     unicode-emoji (4.2.0)
     webrick (1.9.2)
+    yard (0.9.45)
 
 PLATFORMS
   ruby
   x86_64-linux
 
 DEPENDENCIES
+  benchmark-ips (~> 2.13)
   eldr!
   rack-test (~> 2.1)
   rackup (~> 2.2)
@@ -91,6 +94,7 @@ DEPENDENCIES
   slim (~> 5.0)
   tilt (~> 2.9)
   webrick (~> 1.8)
+  yard (~> 0.9)
 
 BUNDLED WITH
    2.6.9

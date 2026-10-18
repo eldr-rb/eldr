@@ -1,0 +1,595 @@
+#+TITLE: Eldr — Finish the TODOS / Modernization Closeout Plan
+#+AUTHOR: K-2052 (agent-assisted)
+#+DATE: [2026-10-13]
+
+* Executive Summary
+
+This plan closes every open item in the repository =TODOS= file and, as a
+closeout, finishes the modernization work that is still pending in
+=.ai/plans/UpdatePlan.org= and =.ai/plans/FullCoverage.org=. The migration to
+Ruby 3.1+, Rack 3, and a 100% (line + branch) SimpleCov gate is already done
+and green locally =bundle exec rspec= → 127 examples, 0 failures; =bundle
+exec rubocop= → clean=; what remains is documentation, performance,
+publishing, and two deliberate code/semantics decisions.
+
+The six =TODOS= items are:
+
+| # | TODO                                                              | Nature              | Effort |
+|---+-------------------------------------------------------------------+---------------------+--------|
+| 1 | =Rdocs=                                                           | Docs (method-level) | S–M    |
+| 2 | =performance improvements=                                        | Code + benchmarks   | M      |
+| 3 | =wiki pages=                                                      | Docs + publishing   | M      |
+| 4 | add =Eldr::Cascade= example to =examples/=                        | Mostly done         | XS     |
+| 5 | =Eldr::Matcher=: raise =ArgumentError= for unsupported path types | Behavior change     | S      |
+| 6 | Review =Eldr::Builder= use-after-=map= semantics                  | Decision + tests    | S      |
+
+Two of these are effectively finished already (#4 ships =examples/cascade.ru=
++ =spec/examples/cascade_spec.rb=; #6 is a no-op behavior-wise — see findings),
+so the real work is #1, #2, #3, and #5.
+
+* Key findings (verified 2026-10-13, Ruby 3.4.9)
+
+** Working tree baseline
+- =bundle exec rspec= → 127 examples, 0 failures.
+- =COVERAGE=1 bundle exec rspec= → line 251/251 (100.00%), branch 57/57
+  (100.00%); gate =minimum_coverage line: 100, branch: 100= (from
+  =spec/spec_helper.rb=). *Any new lib/ code must stay at 100% line + branch.*
+- =bundle exec rubocop= → clean (plugins: =rubocop-rspec=; =TargetRubyVersion
+  3.1=).
+- =TODOS= is the only open tracker; =UpdatePlan.org= / =FullCoverage.org= are
+  historical and have a handful of deliberately-deferred rows (see Phase 7).
+
+** #4 Cascade example — already present
+- =examples/cascade.ru= exists and is exercised end-to-end by
+  =spec/examples/cascade_spec.rb= (200 on =/=, 404 on =/missing=). The TODO is
+  stale: verify, improve discoverability, then check it off.
+
+** #6 Builder use-after-map — Eldr already matches Rack
+The two implementations are line-for-line equivalent here. Verified
+empirically:
+
+#+begin_src ruby
+# use AFTER map
+Eldr: {"/" => {"content-type"=>"text/plain", "x-mw"=>"after"}, "/cats" => {"content-type"=>"text/plain"}}
+Rack: {"/" => {"content-type"=>"text/plain", "x-mw"=>"after"}, "/cats" => {"content-type"=>"text/plain"}}
+#+end_src
+
+=Rack::Builder#use= also consumes the pending =@map= and pushes a
+=generate_map= proc, so middleware added after a =map= wraps only the default
+(=run=) app; middleware added *before* =map= wraps the whole =URLMap=; and a
+=use= inside a =map= block is scoped to that block. The TODO's premise
+("upstream scopes =map= separately") is inaccurate — this is upstream
+behavior. Recommended outcome: *keep semantics, add parity tests, document*.
+
+** #5 Matcher unsupported paths — real gap
+=lib/eldr/matcher.rb:20= =case @path= has no =else=, so a non-String /
+non-Regexp path silently yields =nil= and later raises an opaque
+=NoMethodError= on =#match=. Making it raise =ArgumentError= is a small,
+correctly-scoped behavior change. Coverage nuance: because the gate is
+=line: 100, branch: 100=, the fix must leave every branch exercised (see
+Phase 5 for the exact shape that keeps 100%).
+
+** #2 Performance — measured baseline available
+Microbenchmarks (Ruby 3.4.9, =Benchmark=, warm route table; see Phase 2):
+
+| Path                                   | Per call |
+|----------------------------------------+----------|
+| =BenchApp.call(env)= (public entry)      | ~5.7 µs  |
+| =app#call!= direct (with query string)  | ~3.0 µs  |
+| built app =.call= (no rebuild)           | ~5.1 µs  |
+| =Recognizer#call=                        | ~1.3 µs  |
+| =Builder#to_app=                         | ~0.19 µs |
+| =Rack::Request#params=                   | ~0.27 µs |
+
+Hot spots, in order: (1) routing/Mustermann matching inside
+=Recognizer#call=; (2) per-request parameter extraction in =App#call!=;
+(3) =Route#call= filter dispatch. A prototype single-pass recognizer (build
+the match array directly; only sort when >1 match; no =reject= allocation)
+measured ≈14% faster (=1.30 µs → 1.12 µs=). =Builder#to_app= is *not* a
+bottleneck despite being rebuilt on every =call=.
+
+** #1 Rdocs — toolchain available
+Ruby 3.4 bundles =rdoc 6.14.0= (default gem); no =yard= is installed. The
+public classes already carry class-level comments; method-level docs are
+missing. Recommended: YARD-style comments (the community norm, richer tags)
++ a =yard= dev dependency and =rake yard=; stdlib RDoc is the zero-dependency
+fallback.
+
+* Goals & Non-Goals
+
+** Goals
+- G1. Every =TODOS= checkbox is checked, or explicitly removed with a reason.
+- G2. Public API is documented method-by-method and API docs are buildable
+      and linked from the README.
+- G3. A repeatable, in-repo benchmark suite exists; at least one measured,
+      behavior-preserving optimization ships and is reflected in the README.
+- G4. Wiki content is version-controlled in-repo and publishable (even if the
+      final push is manual).
+- G5. =Eldr::Matcher= raises =ArgumentError= for unsupported path types, with
+      tests and docs; no other behavior changes.
+- G6. =Eldr::Builder= semantics are pinned by tests to Rack::Builder parity
+      and documented; no behavior change.
+- G7. =bundle exec rake=, =COVERAGE=1 bundle exec rspec=, and
+      =bundle exec rubocop= stay green; coverage stays 100% line + branch.
+
+** Non-Goals
+- No feature work (templates, ORM, access-control DSL, etc.).
+- No mustermann 3/4 jump (deliberately deferred; current pin =~> 1.1= is
+  Ruby-3 safe and covered).
+- No Rack::Test env-helper migration (=Rack::MockRequest= still ships in Rack
+  3.2; existing specs are valid).
+- No breaking change to =Eldr::App.new= returning a =Builder=, or to the
+  =use=-after-=map= ordering.
+- No performance work that changes observable behavior or the public DSL.
+
+* Decisions to Confirm
+
+1. *Docs generator*: YARD (add =yard= dev dep, =@param=/@return= tags,
+   =rake yard=, CI docs job) vs stdlib RDoc (no dep). *Recommend YARD.*
+2. *Matcher validation timing*: eager in =Matcher#initialize= (fail fast) vs
+   lazy in =#handler= (minimal diff, matches TODO wording). *Recommend eager
+   in =initialize=* plus a single ternary in =#handler= so branch coverage
+   stays at 100%.
+3. *Builder semantics*: keep Rack parity (recommended) vs change so
+   middleware always wraps mapped apps (breaking, diverges from Rack).
+4. *Wiki hosting*: in-repo =docs/wiki/= sources + manual/Rake push to the
+   GitHub wiki, vs GitHub Pages, vs wiki-only. *Recommend in-repo sources +
+   =rake wiki:publish= + README link.*
+5. *Performance scope*: recognizer + params only (safe, measurable) vs a
+   deeper rewrite (out of scope). *Recommend the former.*
+6. *CI*: add a docs build + (non-gating) benchmark job, or keep CI as-is and
+   run benchmarks locally. *Recommend a docs-build gate; benchmarks local.*
+
+* Phased Plan
+
+Each phase ends with =bundle exec rake= green and =COVERAGE=1 bundle exec
+rspec= still at 100%/100%. Phases 1–5 are independent; Phase 6 depends on
+nothing; Phase 7 is the closeout.
+
+** Phase 1 — Rdocs: method-level API documentation (=TODOS #1=)
+
+Deliverable: every public class and method documented, docs build cleanly,
+README links to them.
+
+1. Add YARD as a development dependency in =eldr.gemspec=
+   (=yard ~> 0.9=) and =.yardopts= (=--markup markdown --no-private
+   --protected --readme README.md --output-dir doc/=).
+2. Add a =rake yard= task (and =rake doc= alias) to =Rakefile=; add
+   =doc/= to =.gitignore= (or the global ignore; =coverage/= is already
+   ignored).
+3. Convert the existing class comments to YARD and add method docs for:
+   - =Eldr= (=lib/eldr.rb=): module overview.
+   - =Eldr::App=: =new=, =.call=, =.builder=, =.configuration=/=.config=,
+     =.set=, =.before=, =.after=, =.routes=, =.recognizer=, the generated
+     verb methods, =.add=, =#initialize=, =#call=, =#call!=, =#request=,
+     =#params=, =#recognize=. Document the =App.new -> Builder= contract and
+     the =before/after= filter scoping rules.
+   - =Eldr::Builder=: =use=, =run=, =warmup=, =map=, =to_app=, =call=,
+     =.app=, plus the =use=-after-=map= ordering note from Phase 6.
+   - =Eldr::Cascade=: =NOTFOUND=, =#initialize=, =#call=, =#add=/=#<<=,
+     =#include?=. Fix the stray placeholder comment at =cascade.rb:6=
+     ("See Eldr::Cascade (top-level docs)").
+   - =Eldr::Configuration=: =#set=, =#table=, =#merge!=, =#method_missing=,
+     =#respond_to_missing?=.
+   - =Eldr::Matcher=: =#initialize=, =#match=, =#handler= (document the
+     String/Regexp contract and the new =ArgumentError=).
+   - =Eldr::Recognizer=: =#call=, =#pattern=, =#verb=, =NotFound=.
+   - =Eldr::Route=: =#initialize=, =#create_handler=, =#call=, filter hooks,
+     =#matcher=, =#match=, =#params=.
+   - =Eldr::VERSION=.
+4. Add a "API Documentation" bullet to README =Help/Resources= linking to
+   =https://www.rubydoc.info/gems/eldr= (which builds automatically from the
+   pushed gem) and to the local =rake yard= output in CONTRIBUTING terms.
+5. Optionally flip =Style/Documentation= back to enabled in =.rubocop.yml=
+   once all classes are documented (all currently have class comments, so it
+   should pass; verify).
+6. Optional CI: add a =docs= job on Ruby 3.4 running
+   =bundle exec yard doc --fail-on-warning= (or =yard stats=).
+
+Checkpoint: =bundle exec yard doc= exits 0 with no warnings; =bundle exec
+rake= green; README link present; =readme_spec.rb= green.
+
+** Phase 2 — performance improvements (=TODOS #2=)
+
+Deliverable: in-repo benchmark harness, one measured optimization, refreshed
+README numbers.
+
+*** 2a. Benchmark harness
+1. Add =benchmark-ips= (=~> 2.13=) and, optionally, =stackprof= (=~> 0.2=)
+   as development dependencies. (If avoiding new deps, use stdlib
+   =benchmark= / =Benchmark.realtime=; the plan below assumes =benchmark-ips=.)
+2. Add =benchmarks/= with:
+   - =benchmarks/support.rb= — builds a representative app (static route,
+     =/cats/:id= param route, several routes, a 404 path).
+   - =benchmarks/bench_app.rb= — end-to-end =App.call= vs =app#call!= vs the
+     built app; simple vs params vs 404.
+   - =benchmarks/bench_routing.rb= — =Recognizer#call= in isolation.
+   - =benchmarks/bench_rack.ru= — a rackup file so external tools
+     (bench-micro / =ab=) can drive it.
+3. Add a =rake bench= task; add =benchmarks/**/*= to the =.rubocop.yml=
+   =AllCops/Exclude= list (benchmarks are exploratory).
+4. Record the baseline in =benchmarks/BASELINE.md= (date, Ruby version, gem
+   versions, ips ± stddev). Do not gate CI on benchmarks (too noisy).
+
+*** 2b. Optimize (behavior-preserving, coverage-safe)
+1. =Recognizer#call=: replace =routes[verb].reject { ... }= + =sort!= with a
+   single pass that pushes matches into an array, and only =sort_by!(&:order)=
+   when the result has more than one element. Memoize =pattern= per env (or
+   inline =PATH_INFO= handling) and avoid re-computing =verb= via
+   =downcase.to_sym= when unnecessary. Prototype measured ≈14% faster on the
+   routing benchmark.
+2. =Route#match= / =Matcher#match=: short-circuit and avoid the extra method
+   hop where safe; keep the memoized =@handler=.
+3. =App#call!= parameter handling: avoid forcing =Rack::Request#params=
+   (query-string parsing) when a handler never reads =params=. Preferred
+   shape: merge route captures into =env['eldr.params']= directly and make
+   the =#params= reader the single place that lazily merges
+   =request.params=. Keep =env['eldr.params']= populated as today so the
+   existing spec (=app.env['eldr.params']['id']=) stays green. If this cannot
+   be done without an observable behavior change, drop it and rely on #1–#2.
+4. =Builder#to_app=: optional cache so =Builder#call= does not rebuild on
+   every dispatch (note: upstream =Rack::Builder#call= also rebuilds and
+   documents this; =to_app= is cheap at ~0.19 µs, so treat as low priority).
+5. Re-measure; keep an optimization only if it is ≥10% on its target
+   benchmark and keeps the suite green at 100%/100% coverage.
+6. Add a regression spec only where behavior is subtle (e.g. recognizer
+   ordering with equal/multiple orders); do not add timing assertions.
+
+*** 2c. Document
+1. Replace the stale 2015 bench-micro table in README =Performance= with
+   current numbers and a short note that a repeatable suite lives in
+   =benchmarks/= (=rake bench=). Keep the bench-micro link as an external
+   cross-check.
+2. CHANGELOG "Changed" entry describing the optimization.
+
+Checkpoint: =rake bench= runs; the chosen optimization reproduces ≥10–15%;
+=bundle exec rake= and =COVERAGE=1= green.
+
+** Phase 3 — wiki pages (=TODOS #3=)
+
+Deliverable: version-controlled wiki sources and a publish path.
+
+1. Create =docs/wiki/= with Markdown pages (GitHub-wiki conventions):
+   - =Home.md= — what Eldr is, why it exists, links.
+   - =_Sidebar.md= — navigation.
+   - =FAQ.md= — "Why not Sinatra?", "Is it Rack 3 ready?", "How do I test an
+     Eldr app?", "How do I mount apps / use =map= and =use=?", "What's the
+     =App.new= returns-a-Builder thing?".
+   - =Routing.md= — verb DSL, params, =order=, =throw :pass=, Regexp paths.
+   - =Middleware-and-Mounting.md= — =use=/=map=/=run=, inheritance, ordering
+     (link to the Phase 6 semantics).
+   - =Error-Handling.md= — callable error classes, =throw :pass=, what Eldr
+     does not catch.
+   - =Cascade.md= — =Eldr::Cascade= usage and the =examples/cascade.ru=.
+   - =Migrating-to-0.1.md= — Ruby >= 3.1 / Rack 3 / lowercase headers /
+     string bodies, from =CHANGELOG.md=.
+   - =Projects-using-Eldr.md= — placeholder, seeded from the old wiki.
+   Content is adapted from README quickstart + CHANGELOG to avoid divergence;
+   README stays canonical for the quickstart.
+2. Add =rake wiki:publish= (in =Rakefile= or =tasks/wiki.rake=): clone
+   =git@github.com:eldr-rb/eldr.wiki.git= into a temp dir, copy
+   =docs/wiki/*.md= over it, commit, push. Document that this needs SSH/PAT
+   access and is intentionally a *manual* release step.
+3. Re-add a Wiki link to README =Help/Resources= (removed in 2015 because the
+   wiki was empty). Verify =spec/readme_spec.rb= still passes (it only checks
+   flags in =readme_definitions.yml=, so no YAML change is required).
+4. Optional: a GitHub Actions workflow to mirror =docs/wiki/= to the wiki on
+   release; document the PAT requirement if used. (The default =GITHUB_TOKEN=
+   is not reliably able to push the separate wiki repo.)
+
+Checkpoint: =docs/wiki/= pages present; =rake wiki:publish= is a documented,
+runnable task; README link present; =readme_spec.rb= green.
+
+** Phase 4 — Eldr::Cascade example (=TODOS #4=)
+
+The example exists; this phase verifies and improves discoverability, then
+closes the TODO.
+
+1. Verify =examples/cascade.ru= + =spec/examples/cascade_spec.rb= still green
+   (they are). Optionally extend the example to also demonstrate a caught
+   =405= (method-not-allowed) and a custom catch list, matching the Cascade
+   specs.
+2. Expand =examples/README.md= from the single =builder.ru= snippet into a
+   short list of the runnable examples, including =cascade.ru= and the
+   =bundle exec rackup examples/<name>.ru= command.
+3. Add a one-line pointer to =Eldr::Cascade= / the cascade example in the
+   README (near "Using Rack inside Eldr" or Extensions).
+4. Check =TODOS #4= off.
+
+Checkpoint: =spec/examples/cascade_spec.rb= green; =examples/README.md= lists
+the examples.
+
+** Phase 5 — Matcher raises ArgumentError (=TODOS #5=)
+
+Deliverable: fail-fast, typed error for unsupported path types, without
+regressing the 100% coverage gate.
+
+1. =lib/eldr/matcher.rb=:
+   #+begin_src ruby
+   def initialize(path, options = {})
+     unless path.is_a?(String) || path.is_a?(Regexp)
+       raise ArgumentError, "unsupported path type: #{path.class} (expected String or Regexp)"
+     end
+
+     @path    = path
+     @capture = options.delete(:capture)
+   end
+
+   def handler
+     @handler ||= @path.is_a?(String) ? Mustermann.new(@path, capture: @capture) : /^(?:#{@path})$/
+   end
+   #+end_src
+   Rationale for the ternary (not =case/else=): eager validation makes the
+   implicit =else= unreachable, which would leave an uncovered branch and
+   fail the =branch: 100= gate. The ternary has exactly two branches, both
+   covered by existing String/Regexp examples.
+2. =spec/matcher_spec.rb=: change the "unsupported path types" example to
+   assert the raise at construction:
+   #+begin_src ruby
+   it 'raises ArgumentError for paths that are neither String nor Regexp' do
+     expect { described_class.new(:cats) }.to raise_error(ArgumentError, /unsupported path type/)
+   end
+   #+end_src
+3. =spec/route_spec.rb= (optional but recommended): assert that a =Route=
+   with an unsupported =path:= surfaces the =ArgumentError= when its matcher
+   is first built (=route.matcher=), documenting that validation is lazy for
+   routes. If fail-fast at route-definition time is preferred, also call
+   =matcher= from =Route#initialize= (adds one line; keep coverage).
+4. Docs: note supported path types (String Mustermann pattern or Regexp) in
+   =Matcher= YARD docs and README Rails-style routing section.
+5. Decide and record whether =path: nil= / symbols should be a route-definition
+   error; if yes, validate in =App.add= too (small follow-up).
+6. CHANGELOG "Changed/Fixed" entry. Check =TODOS #5= off.
+
+Checkpoint: =COVERAGE=1 bundle exec rspec= still 100% line + branch; =rake=
+green.
+
+** Phase 6 — Builder use-after-map review (=TODOS #6=)
+
+Deliverable: parity tests + documentation; no behavior change.
+
+1. Add =spec/builder_spec.rb= examples that build the *same* stack with
+   =Eldr::Builder= and =Rack::Builder= for three orderings and assert equal
+   responses:
+   - =use= *before* =map=: middleware wraps the whole =URLMap= (both paths
+     carry the middleware header).
+   - =use= *after* =map=: middleware wraps only the default app; mapped paths
+     bypass it (this is the behavior already pinned in the existing
+     "#use after #map" describe).
+   - =use= *inside* a =map= block: scoped to that block only.
+   Verified manually: Eldr output is byte-identical to Rack for the
+   use-after-map case.
+2. Update the =Builder= comment and YARD docs to state the ordering rule and
+   that it intentionally matches =Rack::Builder=.
+3. Add a short README note in the Builder/mounting section (and/or
+   =docs/wiki/Middleware-and-Mounting.md=).
+4. Record the decision in this plan's review status and CHANGELOG "Notes":
+   keep Rack parity; a change that forces middleware over mapped apps is a
+   separate breaking proposal.
+5. Check =TODOS #6= off.
+
+Checkpoint: =spec/builder_spec.rb= green (new parity examples included);
+=bundle exec rake= green.
+
+** Phase 7 — Closeout: TODOS, CHANGELOG, and deferred modernization
+
+1. Edit =TODOS= so all six items are checked =[x]= (or removed with a short
+   parenthetical pointing at the change), and leave it empty of actionable
+   items.
+2. CHANGELOG =0.1.0= (or a =0.2.0= if #5 is considered breaking): add the
+   documentation, performance, wiki, and =Matcher= entries. =Matcher= now
+   raising is the only user-visible behavior change; note it (arguably a
+   minor bump if any app passed a non-String/Regexp path — unlikely).
+3. Bump =Eldr::VERSION= if #5 ships as a behavior change (0.1.0 → 0.2.0) and
+   update the CHANGELOG release header. (Decision point; default =0.1.0=
+   remains unreleased, so folding into it is also acceptable.)
+4. Close the related deferred rows so the modernization plans are consistent:
+   - UpdatePlan 7.4 "YARD/RDoc to public classes" → checked (Phase 1).
+   - UpdatePlan 6.2 (shared =let(:rt)=) and 3.3/6.2 env-helper rows → mark
+     "wontfix (not needed)" with the reason.
+   - UpdatePlan 8.6 / FullCoverage "final green CI" → check once the branch
+     is pushed and GitHub Actions is green on 3.1–3.4.
+5. =git status=: ensure =benchmarks/=, =docs/wiki/=, =.yardopts=, =rake= tasks,
+   and any new files are committed; =doc/= and =coverage/= stay ignored.
+6. Final verification (below) and one CI round-trip.
+
+* Detailed File-Level Change List
+
+| File / path                         | Phase | Change                                                         |
+|-------------------------------------+-------+----------------------------------------------------------------|
+| =eldr.gemspec=                        | 1,2   | add =yard=, =benchmark-ips= (=stackprof= optional) dev deps      |
+| =.yardopts=                           | 1     | NEW — YARD config                                                |
+| =Rakefile= / =tasks/wiki.rake=        | 1,3   | =yard= / =doc= / =bench= / =wiki:publish= tasks                    |
+| =lib/eldr.rb=                         | 1     | YARD module overview                                            |
+| =lib/eldr/app.rb=                     | 1     | YARD method docs; document =new -> Builder=                       |
+| =lib/eldr/builder.rb=                 | 1,6   | YARD docs; ordering note (parity with Rack)                     |
+| =lib/eldr/cascade.rb=                 | 1     | YARD docs; remove placeholder comment; optional 405 example note |
+| =lib/eldr/configuration.rb=           | 1     | YARD method docs                                                |
+| =lib/eldr/matcher.rb=                 | 1,5   | YARD docs; eager =ArgumentError=; ternary =#handler=               |
+| =lib/eldr/recognizer.rb=              | 1,2   | YARD docs; single-pass + conditional sort optimization          |
+| =lib/eldr/route.rb=                   | 1,2   | YARD docs; minor hot-path cleanup (no behavior change)          |
+| =lib/eldr/version.rb=                 | 7     | optional bump to 0.2.0                                          |
+| =benchmarks/support.rb=               | 2     | NEW — app fixtures                                              |
+| =benchmarks/bench_app.rb=             | 2     | NEW — end-to-end ips                                            |
+| =benchmarks/bench_routing.rb=         | 2     | NEW — recognizer ips                                            |
+| =benchmarks/bench_rack.ru=            | 2     | NEW — external benchmarking entry                               |
+| =benchmarks/BASELINE.md=              | 2     | NEW — recorded baseline + after numbers                        |
+| =docs/wiki/Home.md= … =_Sidebar.md=     | 3     | NEW — wiki sources                                              |
+| =examples/cascade.ru=                 | 4     | optional: demonstrate 405 / custom catch                        |
+| =examples/README.md=                  | 4     | list runnable examples incl. =cascade.ru=                         |
+| =spec/matcher_spec.rb=                | 5     | unsupported path now expects =ArgumentError=                      |
+| =spec/route_spec.rb=                  | 5     | optional lazy-validation example                                |
+| =spec/builder_spec.rb=                | 6     | Rack-parity ordering examples                                   |
+| =.rubocop.yml=                        | 1,2   | optionally enable =Style/Documentation=; exclude =benchmarks/=      |
+| =.github/workflows/ci.yml=            | 1     | optional docs-build job                                         |
+| =README.md=                          | 1,2,3,4,6 | API docs link, refreshed Performance, Wiki link, Cascade pointer, Builder note |
+| =CHANGELOG.md=                        | 2,5,7 | performance, matcher, docs/wiki entries                         |
+| =TODOS=                               | 7     | check off all six items                                         |
+
+* Verification & Acceptance Criteria (Definition of Done)
+
+Run after every phase and once at the end:
+
+| Command                        | Expected                                                        |
+|--------------------------------+-----------------------------------------------------------------|
+| =bundle exec rspec=              | 127+ examples, 0 failures                                       |
+| =COVERAGE=1 bundle exec rspec=   | line 100.00%, branch 100.00%, exit 0                            |
+| =bundle exec rubocop=            | no offenses                                                     |
+| =bundle exec rake=               | rubocop + spec green                                            |
+| =bundle exec yard doc=           | exit 0, no warnings (Phase 1)                                   |
+| =rake bench=                     | runs; optimization ≥10–15% on target scenario (Phase 2)         |
+| =bundle exec rackup examples/cascade.ru= | boots; =/= → 200 "Hello from the cascade!", =/missing= → 404 |
+| =rake wiki:publish=              | documented; manual push succeeds when credentials are available |
+
+Acceptance checklist:
+- [ ] =TODOS= has no unchecked items.
+- [ ] Public API documented method-by-method; =yard doc= clean; README links
+      to API docs.
+- [ ] =benchmarks/= exists, baseline recorded, at least one measured
+      optimization shipped, README Performance section refreshed.
+- [ ] =docs/wiki/= contains the wiki pages and =rake wiki:publish= works.
+- [ ] =Eldr::Matcher= raises =ArgumentError= for unsupported path types, with
+      specs and docs; coverage still 100% line + branch.
+- [ ] =Eldr::Builder= use-after-=map= behavior is pinned to Rack parity and
+      documented; no behavior change.
+- [ ] =examples/cascade.ru= verified, discoverable from =examples/README.md=
+      and README.
+- [ ] CHANGELOG updated; version decided.
+- [ ] CI green on Ruby 3.1–3.4 (final push).
+
+* Task Breakdown (checkbox tracker)
+
+Ordered within each phase; phases 1–6 are independent.
+
+** Phase 1 — Rdocs
+- [ ] 1.1 Add =yard= dev dep + =.yardopts=; =rake yard= / =doc=.
+- [ ] 1.2 Document =lib/eldr.rb= and =Eldr::App=.
+- [ ] 1.3 Document =Eldr::Builder= (incl. ordering note).
+- [ ] 1.4 Document =Eldr::Cascade=, =Configuration=, =Matcher=,
+      =Recognizer=, =Route=, =VERSION=.
+- [ ] 1.5 Add README API-docs link; optional =Style/Documentation= flip.
+- [ ] 1.6 Optional CI docs-build job.
+- [ ] 1.7 Checkpoint: =yard doc= + =rake= green.
+
+** Phase 2 — performance
+- [ ] 2.1 Add =benchmark-ips= (and optional =stackprof=) + =benchmarks/=.
+- [ ] 2.2 Add =rake bench=; exclude =benchmarks/= from rubocop.
+- [ ] 2.3 Record baseline in =benchmarks/BASELINE.md=.
+- [ ] 2.4 Optimize =Recognizer#call= (single pass, conditional sort).
+- [ ] 2.5 Optimize =App#call!= params handling (lazy Rack params), if
+      behavior-preserving.
+- [ ] 2.6 Optional: memoize =Builder#to_app= for =#call=.
+- [ ] 2.7 Re-measure; keep only ≥10% wins; refresh README Performance.
+- [ ] 2.8 Checkpoint: =rake bench= + =rake= + coverage green.
+
+** Phase 3 — wiki
+- [ ] 3.1 Create =docs/wiki/= pages (Home, Sidebar, FAQ, Routing,
+      Middleware-and-Mounting, Error-Handling, Cascade, Migrating-to-0.1,
+      Projects-using-Eldr).
+- [ ] 3.2 Add =rake wiki:publish=; document credentials.
+- [ ] 3.3 Re-add README Wiki link; verify =readme_spec.rb=.
+- [ ] 3.4 Optional: CI/Pages mirror.
+- [ ] 3.5 Checkpoint: pages present; =rake= green.
+
+** Phase 4 — Cascade example
+- [ ] 4.1 Verify =examples/cascade.ru= + spec; optionally add 405/custom-catch.
+- [ ] 4.2 Expand =examples/README.md= into an example list.
+- [ ] 4.3 Add README pointer to Cascade/example.
+- [ ] 4.4 Check =TODOS #4= off.
+
+** Phase 5 — Matcher ArgumentError
+- [ ] 5.1 Eager validation + ternary =#handler= in =matcher.rb=.
+- [ ] 5.2 Update =spec/matcher_spec.rb=; optional =spec/route_spec.rb=.
+- [ ] 5.3 Docs (Matcher + README routing); CHANGELOG.
+- [ ] 5.4 Checkpoint: 100% coverage; =rake= green.
+- [ ] 5.5 Check =TODOS #5= off.
+
+** Phase 6 — Builder semantics
+- [ ] 6.1 Add Rack-parity ordering examples to =spec/builder_spec.rb=.
+- [ ] 6.2 Update Builder docs + README/wiki note.
+- [ ] 6.3 Record "keep Rack parity" decision.
+- [ ] 6.4 Check =TODOS #6= off.
+
+** Phase 7 — Closeout
+- [ ] 7.1 Check off =TODOS #1, #2, #3= (and all others).
+- [ ] 7.2 CHANGELOG entries; version decision.
+- [ ] 7.3 Reconcile deferred rows in =UpdatePlan.org= / =FullCoverage.org=.
+- [ ] 7.4 Final =rake=, coverage, =yard=, =bench=; commit.
+- [ ] 7.5 Push; watch CI 3.1–3.4 green.
+
+* Risks & Notes
+
+1. *Coverage gate is strict (100% line + branch).* New lib code (Matcher
+   validation, recognizer optimization, lazy params) must leave no uncovered
+   branch. The ternary-in-=handler= shape is specifically chosen to keep
+   branch coverage at 100%. Verify with =COVERAGE=1= after every lib change.
+2. *Performance changes can regress under different Ruby versions.* Keep
+   optimizations small and benchmark on the CI matrix before declaring a win;
+   don't gate CI on timings.
+3. *Lazy params can change observable env timing.* If making =App#params=
+   lazy changes what is present in =env['eldr.params']= mid-filter, keep the
+   current eager merge (or a hybrid) and rely on recognizer/route
+   optimizations instead.
+4. *Matcher behavior change.* Raising =ArgumentError= is technically
+   breaking; decide 0.1.0-vs-0.2.0 in Phase 7. Symbol/nil paths are almost
+   certainly bugs in caller code, so impact is low.
+5. *Wiki publishing needs credentials.* The wiki is a separate git repo;
+   =GITHUB_TOKEN= is not reliably able to push it. Keep sources in-repo and
+   treat the push as a manual release step (or use a PAT in a dedicated
+   workflow).
+6. *Docs tool choice adds a dev dep.* YARD is dev-only and does not affect the
+   installed gem's runtime dependencies. The stdlib RDoc fallback keeps the
+   dependency count at zero if preferred.
+7. *README is a contract.* =spec/readme_spec.rb= + =readme_definitions.yml=
+   must stay green; adding links/sections is safe (only boolean flags are
+   asserted), but preserve existing headings the quickstart defines.
+8. *Examples are excluded from RuboCop* (=.rubocop.yml= =examples/**/*=), so
+   Cascade example tweaks won't trip lint; keep them Rack-3 valid (they run
+   through =Rack::Lint= in the spec helper).
+
+* Review Status (2026-10-13)
+
+- [X] =TODOS= inventory captured; all six items mapped to phases.
+- [X] #4 (Cascade example) confirmed already shipped.
+- [X] #6 premise verified inaccurate: Eldr::Builder matches Rack::Builder
+      byte-for-byte for =use= after =map=; parity is the recommendation.
+- [X] #5 gap located at =matcher.rb:20=; coverage-safe fix shape designed.
+- [X] #2 baseline measured; recognizer prototype ≈14% faster.
+- [X] #1 toolchain confirmed (rdoc 6.14 default; YARD added).
+- [X] Implement Phases 1–7.
+
+* Implementation Status (2026-10-13)
+
+All phases implemented on branch (uncommitted at time of writing):
+
+- *Phase 1 — Rdocs*: =yard ~> 0.9= dev dep, =.yardopts=, =rake yard=/
+  =rake doc=; every public class/attribute/method documented (100%);
+  =yard doc --no-output --fail-on-warning= passes; CI =docs= job added.
+- *Phase 2 — performance*: =benchmark-ips= dev dep + =benchmarks/= suite
+  (=support.rb=, =bench_app.rb=, =bench_routing.rb=, =bench_rack.ru=,
+  =BASELINE.md=), =rake bench=, rubocop excludes =benchmarks/=.
+  Shipped the single-pass recognizer (≈16% on routing) and the
+  literal-path params fast path (≈14% end-to-end on static dispatch);
+  skipped lazy params (behavior risk) and =to_app= memoization.
+- *Phase 3 — wiki*: =docs/wiki/= (Home, _Sidebar, FAQ, Routing,
+  Middleware-and-Mounting, Error-Handling, Cascade, Migrating-to-0.1,
+  Projects-using-Eldr); =rake wiki:publish= added; README Wiki + API docs
+  links restored.
+- *Phase 4 — Cascade example*: verified; =examples/README.md= expanded
+  to list all examples; README pointer added.
+- *Phase 5 — Matcher*: =Matcher#initialize= raises =ArgumentError=,
+  =Route#initialize= validates eagerly, ternary =#handler=; specs updated;
+  coverage 100% line+branch.
+- *Phase 6 — Builder*: Rack-parity examples added for three orderings;
+  docs state Rack parity is intentional; decision recorded here and in
+  CHANGELOG.
+- *Phase 7 — closeout*: =TODOS= fully checked; CHANGELOG =0.2.0= section
+  added; =Eldr::VERSION= bumped to =0.2.0= (matcher behavior change after
+  the dated 0.1.0 release); deferred rows in =UpdatePlan.org= and
+  =FullCoverage.org= reconciled (except the two CI rows, which need a
+  push).
+
+Verification on Ruby 3.4.9: =bundle exec rake= green (132 examples, 0
+failures; RuboCop clean), =COVERAGE=1 bundle exec rspec= 100% line+branch,
+=yard doc --fail-on-warning= 100%. CI matrix (3.1–3.4) still to be
+confirmed after push.

@@ -4,6 +4,48 @@ All notable changes to this project are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-13
+
+A documentation, performance, and polish release. The public DSL is unchanged.
+
+### Added
+- Wiki sources under `docs/wiki/` (Home, FAQ, Routing, Middleware and
+  Mounting, Error Handling, Cascade, Migrating to 0.1, Projects using Eldr),
+  plus `rake wiki:publish` to mirror them to the GitHub wiki.
+- YARD configuration (`.yardopts`) and `rake yard` / `rake doc` tasks. The
+  public API is now 100% documented; `yard doc --fail-on-warning` passes and a
+  `docs` job runs it in CI.
+- Benchmark suite under `benchmarks/` with `rake bench`, a recorded baseline
+  in `benchmarks/BASELINE.md`, and a `benchmarks/bench_rack.ru` rackup entry.
+- `spec/builder_spec.rb` now pins `Eldr::Builder` `use`/`map` ordering to
+  `Rack::Builder` parity for three orderings.
+- `examples/README.md` now lists every runnable example.
+
+### Changed
+- **Performance**: `Eldr::Recognizer#call` matches routes in a single pass and
+  only sorts when more than one route matches. `Eldr::Matcher#params` returns
+  `{}` immediately for literal (non-parameterized) paths instead of re-running
+  Mustermann. Together these measured roughly 14–16% faster static dispatch
+  and routing on Ruby 3.4 (see `benchmarks/BASELINE.md`).
+- `Eldr::Builder` docs state that `use`/`map` ordering intentionally matches
+  `Rack::Builder`.
+
+### Fixed
+- `Eldr::Matcher` now raises `ArgumentError` for paths that are neither a
+  `String` nor a `Regexp`, instead of silently yielding a nil handler.
+  `Eldr::Route` validates eagerly at definition time. This is a behavior
+  change for callers that passed invalid paths (almost certainly a bug).
+
+### Documentation
+- README: refreshed the Performance section, linked the wiki and generated
+  API docs, documented supported route path types, and added a pointer to
+  `examples/cascade.ru`.
+
+### Notes
+- `Eldr::Builder` semantics stay identical to `Rack::Builder`; forcing
+  middleware over mapped apps would be a separate, breaking proposal.
+- Benchmarks are indicative and do not gate CI; re-run them locally.
+
 ## [0.1.0] - 2026-03-11
 
 A maintenance release that brings the framework forward to a modern Ruby /

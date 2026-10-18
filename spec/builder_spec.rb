@@ -122,4 +122,75 @@ RSpec.describe Eldr::Builder do
       expect(app.call('PATH_INFO' => '/', 'REQUEST_METHOD' => 'GET')[2]).to eq(['hello'])
     end
   end
+
+  describe 'Rack::Builder parity' do
+    let(:middleware) do
+      Class.new do
+        def initialize(app)
+          @app = app
+        end
+
+        def call(env)
+          status, headers, body = @app.call(env)
+          [status, headers.merge('x-mw' => '1'), body]
+        end
+      end
+    end
+    let(:index) { proc { |_env| [200, { 'content-type' => 'text/plain' }, ['index']] } }
+    let(:cats)  { proc { |_env| [200, { 'content-type' => 'text/plain' }, ['cats']] } }
+
+    def snapshot(app)
+      %w[/ /cats].map do |path|
+        status, headers, body = app.call(Rack::MockRequest.env_for(path, method: :get))
+        [status, headers['x-mw'], body]
+      end
+    end
+
+    # Builds the same stack with Eldr::Builder and Rack::Builder. Mapped
+    # blocks are instance_eval'ed on a fresh builder, so capture the apps
+    # into locals first.
+    def build_pair(&steps)
+      cats_app = cats
+      eldr = Eldr::Builder.new
+      rack = Rack::Builder.new
+      [eldr, rack].each { |builder| steps.call(builder, cats_app) }
+      [eldr.to_app, rack.to_app]
+    end
+
+    it 'matches Rack::Builder when use precedes map (middleware wraps the URLMap)' do
+      eldr, rack = build_pair do |builder, cats_app|
+        builder.use middleware
+        builder.map('/cats') { run cats_app }
+        builder.run index
+      end
+
+      expect(snapshot(eldr)).to eq(snapshot(rack))
+      expect(snapshot(eldr)).to eq([[200, '1', ['index']], [200, '1', ['cats']]])
+    end
+
+    it 'matches Rack::Builder when use follows map (mapped paths bypass it)' do
+      eldr, rack = build_pair do |builder, cats_app|
+        builder.map('/cats') { run cats_app }
+        builder.use middleware
+        builder.run index
+      end
+
+      expect(snapshot(eldr)).to eq(snapshot(rack))
+      expect(snapshot(eldr)).to eq([[200, '1', ['index']], [200, nil, ['cats']]])
+    end
+
+    it 'matches Rack::Builder when use is inside a map block (scoped to that branch)' do
+      mw = middleware
+      eldr, rack = build_pair do |builder, cats_app|
+        builder.map('/cats') do
+          use mw
+          run cats_app
+        end
+        builder.run index
+      end
+
+      expect(snapshot(eldr)).to eq(snapshot(rack))
+      expect(snapshot(eldr)).to eq([[200, nil, ['index']], [200, '1', ['cats']]])
+    end
+  end
 end

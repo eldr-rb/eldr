@@ -318,6 +318,10 @@ We could add a lot more abstraction but this is simple enough and accomplishes o
 
 Pre-building flexibility and accounting for things you don't need to do yet is unnecessary work. You should build apps that you can _see into_ and actually understand, no magic.
 
+Route paths must be either a Mustermann-style `String` pattern (for example
+`'/cats/:id'`) or a `Regexp`; anything else raises an `ArgumentError` when the
+route is defined.
+
 ### Rails Style Responses
 
 The Rails world has a tremendous amount of conventions and abstraction for dealing with responses. They range from complex to simple, from format helpers to full fledged REST abstractions. At their core, they all take information from Rack::Request and turn it into a valid Rack response -- and a valid rack response is just an array.
@@ -674,8 +678,10 @@ class App
   post '/users' do
   end
 end
-run Eldr::Cascade.new[App, EldrWise]
+run Eldr::Cascade.new([App, EldrWise])
 ```
+
+See [`examples/cascade.ru`](examples/cascade.ru) for a runnable version.
 
 Thinking about Rack when you construct your Eldr apps will make them flexible and easy to reuse.
 
@@ -699,6 +705,12 @@ class App < Eldr::App
     UsersController
   end
 end
+```
+
+`use` and `map` follow `Rack::Builder` ordering exactly: a `use` after `map`
+wraps the generated `URLMap`, while a `use` before `map` (or inside a `map`
+block) is scoped accordingly. This parity is pinned by specs in
+`spec/builder_spec.rb`.
 ```
 
 Because rack builder itself can take rack builder instances we can run our App in config.ru just like we expect:
@@ -825,28 +837,23 @@ See the spec/ in this repo for some specific rspec examples.
 
 ## Performance
 
-Eldr has been built with perfomance in mind. Right now it performs in the middle of the pack and more performance improvements are forthcoming:
+Eldr is built with performance in mind. The router matches routes in a single
+pass, only sorting when more than one route matches, and skips a second
+pattern match for literal (non-parameterized) paths. Measured on Ruby 3.4,
+this made routing and static dispatch roughly 14–16% faster than the previous
+implementation.
 
-| Framework     |  Requests/sec | % from best |
-|---------------|:-------------:|------------:|
-| rack          |    10282.20   |    100.0%   |
-| hobbit        |     8853.81   |    86.11%   |
-| roda          |     8830.00   |    85.88%   |
-| cuba          |     8517.00   |    82.83%   |
-| lotus-router  |     8464.81   |    82.32%   |
-| rack-response |     7939.67   |    77.22%   |
-| brooklyn      |     7639.88   |     74.3%   |
-| *eldr*        |     7170.15   |    69.73%   |
-| rambutan      |     6954.75   |    67.64%   |
-| nancy         |     6516.84   |    63.38%   |
-| gin           |     3850.00   |    37.44%   |
-| nyny          |     3745.96   |    36.43%   |
-| sinatra       |     2740.50   |    26.65%   |
-| rails         |     2475.50   |    24.08%   |
-| scorched      |     1692.18   |    16.46%   |
-| ramaze        |     1490.42   |     14.5%   |
+Run the repeatable suite locally:
 
-See the [bench-micro](https://github.com/eldr-rb/bench-micro) repo to run your own perfomance benchmarks
+```sh
+$ bundle exec rake bench
+```
+
+Recorded before/after numbers and methodology live in
+[benchmarks/BASELINE.md](benchmarks/BASELINE.md). For cross-framework numbers
+see the [bench-micro](https://github.com/eldr-rb/bench-micro) repo. Eldr does
+not gate CI on timings; treat the numbers as indicative and re-run them on your
+own hardware.
 
 ## Help/Resources
 
@@ -855,6 +862,8 @@ You can get help from the following places:
 - [@k_2052](http://twitter.com/k_2052) Feel free to mention me on twitter for quick questions
 - [The Mailing List](https://groups.google.com/forum/#!forum/eldr-ruby) For questions that aren't a bug or feature request
 - [The examples folder](https://github.com/eldr-rb/eldr/tree/master/examples) in this repo has full runnable versions of the quickstart's examples
+- [The Wiki](https://github.com/eldr-rb/eldr/wiki) has guides, an FAQ, and recipes for common tasks
+- [The API documentation](https://rubydoc.info/gems/eldr) covers every public class and method
 - [BuildYourOwnSinatra.com](http://buildyourownsinatra.com) A companion book on building Eldr
 - [Issues](https://github.com/eldr-rb/eldr/issues) on this repo for bug reports and feature requests
 - And of course checkout the GitHub org [eldr-rb/](https://github.com/eldr-rb) for all the Eldr gems.

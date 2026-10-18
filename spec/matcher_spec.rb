@@ -34,8 +34,9 @@ RSpec.describe Eldr::Matcher do
   end
 
   describe 'unsupported path types' do
-    it 'returns a nil handler for paths that are neither String nor Regexp' do
-      expect(described_class.new(:cats).handler).to be_nil
+    it 'raises ArgumentError for paths that are neither String nor Regexp' do
+      expect { described_class.new(:cats) }
+        .to raise_error(ArgumentError, /unsupported path type: Symbol \(expected String or Regexp\)/)
     end
   end
 
@@ -49,6 +50,28 @@ RSpec.describe Eldr::Matcher do
 
     it 'does not match when the capture constraint fails' do
       expect(matcher.match('/cats/abc')).to be_nil
+    end
+  end
+
+  describe '#params' do
+    context 'with a parameterized pattern' do
+      let(:matcher) { described_class.new('/cats/:id') }
+
+      it 'extracts the named captures' do
+        expect(matcher.params('/cats/bob')).to eq('id' => 'bob')
+      end
+
+      it 'returns an empty hash when the pattern does not match' do
+        expect(matcher.params('/dogs/bob')).to eq({})
+      end
+    end
+
+    context 'with a literal pattern' do
+      let(:matcher) { described_class.new('/static') }
+
+      it 'returns an empty hash without matching' do
+        expect(matcher.params('/static')).to eq({})
+      end
     end
   end
 end

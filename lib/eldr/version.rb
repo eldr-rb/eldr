@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
 module Eldr
-  VERSION = '0.1.0'
+  # @return [String] the current gem version
+  VERSION = '0.2.0'
 end
